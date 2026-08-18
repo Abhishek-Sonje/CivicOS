@@ -6,6 +6,7 @@ import { db } from "../lib/db/client";
 import { issues } from "../lib/db/schema";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
+import { SCRAPER_TARGETS } from "../lib/scraper/targets";
 import * as dotenv from "dotenv";
 import * as path from "path";
 
@@ -16,11 +17,21 @@ async function runIngestion() {
   const collectorId = process.argv[2] || process.env.BRIGHTDATA_COLLECTOR_ID || "c_mock_collector";
   console.log(`[START] Starting ingestion pipeline for collector: ${collectorId}`);
 
+  // Retrieve crawl target configuration from the map
+  const target = SCRAPER_TARGETS[collectorId];
+  if (target === undefined || target === "" || (Array.isArray(target) && target.length === 0)) {
+    console.error(
+      `[ERROR] No target URL(s) or file path configured for collector "${collectorId}".` +
+      ` Please populate the target details inside "lib/scraper/targets.ts".`
+    );
+    process.exit(1);
+  }
+
   let rawPayloads: any;
 
   try {
-    // Shell out to Bright Data CLI
-    const result = await runCollector(collectorId);
+    // Shell out to Bright Data CLI with the target URL/file configuration
+    const result = await runCollector(collectorId, target);
     console.log("[INFO] Scraper run completed. Parsing results...");
 
     // Extracts items flexibly based on what the JSON output contains

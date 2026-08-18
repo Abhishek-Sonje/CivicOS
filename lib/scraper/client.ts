@@ -71,14 +71,30 @@ async function runCliCommand(args: string[]): Promise<ScraperEnvelope> {
   });
 }
 
+export type ScraperTarget = string | string[];
+
 /**
- * Runs a Bright Data scraper for a specific collector ID, optionally targeting a specific URL.
+ * Runs a Bright Data scraper for a specific collector ID against the specified target (URL, array of URLs, or file path).
  */
-export async function runCollector(collectorId: string, url?: string): Promise<ScraperEnvelope> {
+export async function runCollector(
+  collectorId: string,
+  target: ScraperTarget
+): Promise<ScraperEnvelope> {
   const args = ["scraper", "run", collectorId];
-  if (url) {
-    args.push(url);
+
+  if (Array.isArray(target)) {
+    // Comma-separated list of URLs
+    args.push("--urls", target.join(","));
+  } else if (typeof target === "string") {
+    if (target.startsWith("http://") || target.startsWith("https://")) {
+      // Positional URL argument
+      args.push(target);
+    } else {
+      // Input file path argument
+      args.push("--input-file", target);
+    }
   }
+
   return runCliCommand(args);
 }
 
