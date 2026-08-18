@@ -32,3 +32,12 @@ type _VerifyZodToDrizzle = {
   [K in keyof SchemaSelect]-?: NonNullable<SchemaSelect[K]>;
 } ? true : never;
 const _assertZodToDrizzle: _VerifyZodToDrizzle = true;
+
+export const scraperRuns = sqliteTable("scraper_runs", {
+  id: text("id").primaryKey(),
+  collector_id: text("collector_id").notNull(),
+  status: text("status", { enum: ["healthy", "failed", "healing"] }).notNull(),
+  items_fetched: integer("items_fetched").notNull(),
+  last_run: text("last_run").notNull(),
+  error_message: text("error_message"),
+});

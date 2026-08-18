@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { COPY } from "../../lib/constants/copy";
 
 interface CollectorStatus {
   id: string;
-  name: string;
   status: "healthy" | "failed" | "healing";
   lastRun: string;
   itemCount: number;
@@ -16,27 +15,46 @@ interface ScraperHealthPanelProps {
   failedGeocodeCount?: number;
 }
 
+const COLLECTOR_NAMES: Record<string, string> = {
+  c_msylxvsj5jpsgd945: "Municipal Grievance Board Scraper",
+  c_msylkl601pxsajf3v8: "Regional News Comments Scraper",
+};
+
 export default function ScraperHealthPanel({ failedGeocodeCount = 0 }: ScraperHealthPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [collectors, setCollectors] = useState<CollectorStatus[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Simulated status matching Bright Data collector specs for the week
-  const collectors: CollectorStatus[] = [
-    {
-      id: "c_municipal_grievances",
-      name: "Municipal Grievance Board Scraper",
-      status: "healthy",
-      lastRun: "2026-08-18 11:24:12",
-      itemCount: 14,
-    },
-    {
-      id: "c_regional_news_feed",
-      name: "Regional News Comments Scraper",
-      status: "failed",
-      lastRun: "2026-08-18 12:45:00",
-      itemCount: 0,
-      errorDetail: "Selector for 'description_text' returned null. Parent layout changed from 'div.comment' to 'article.reply'.",
-    },
-  ];
+  useEffect(() => {
+    let active = true;
+
+    async function fetchHealth() {
+      try {
+        const response = await fetch("/api/scraper-health");
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}`);
+        }
+        const data = (await response.json()) as CollectorStatus[];
+        if (active) {
+          setCollectors(data);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Failed to query scraper health API:", err);
+      }
+    }
+
+    // Initial fetch on mount
+    fetchHealth();
+
+    // Poll endpoint every 5 seconds for live dashboard updates
+    const timer = setInterval(fetchHealth, 5000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   return (
     <div className="fixed bottom-0 left-4 z-[2000] font-sans">
@@ -51,7 +69,7 @@ export default function ScraperHealthPanel({ failedGeocodeCount = 0 }: ScraperHe
           <span className="relative inline-flex rounded-full h-2 w-2 bg-severity-critical"></span>
         </span>
         {COPY.scraperHealth.panelTitle}
-        <span className="text-[10px] opacity-65 ml-1">{isOpen ? "▼ Close" : "▲ Open"}</span>
+        <span className="text-[10px] opacity-65 ml-1">{isOpen ? "Close" : "Open"}</span>
       </button>
 
       {/* Drawer Body */}
@@ -74,71 +92,79 @@ export default function ScraperHealthPanel({ failedGeocodeCount = 0 }: ScraperHe
           )}
 
           <div className="flex flex-col gap-4">
-            {collectors.map((collector) => {
-              const isFailed = collector.status === "failed";
-              const isHealthy = collector.status === "healthy";
-              
-              let statusLabel = COPY.scraperHealth.statusHealthy;
-              let statusBg = "bg-severity-low/10";
-              let statusText = "text-severity-low";
+            {loading ? (
+              <span className="text-[10px] text-foreground/50 animate-pulse text-center py-4">
+                Loading collector health statuses...
+              </span>
+            ) : collectors.length === 0 ? (
+              <span className="text-[10px] text-foreground/50 text-center py-4">
+                No collector definitions registered.
+              </span>
+            ) : (
+              collectors.map((collector) => {
+                const isFailed = collector.status === "failed";
+                const isHealthy = collector.status === "healthy";
+                const displayName = COLLECTOR_NAMES[collector.id] || collector.id;
+                
+                let statusBg = "bg-severity-low/10";
+                let statusText = "text-severity-low";
 
-              if (isFailed) {
-                statusLabel = COPY.scraperHealth.statusFailed;
-                statusBg = "bg-severity-critical/10";
-                statusText = "text-severity-critical";
-              } else if (collector.status === "healing") {
-                statusLabel = COPY.scraperHealth.statusHealing;
-                statusBg = "bg-severity-moderate/10";
-                statusText = "text-severity-moderate";
-              }
+                if (isFailed) {
+                  statusBg = "bg-severity-critical/10";
+                  statusText = "text-severity-critical";
+                } else if (collector.status === "healing") {
+                  statusBg = "bg-severity-moderate/10";
+                  statusText = "text-severity-moderate";
+                }
 
-              return (
-                <div
-                  key={collector.id}
-                  className={`p-3 rounded-panel border flex flex-col gap-2 ${
-                    isFailed ? "border-severity-critical/30 bg-severity-critical/5" : "border-border bg-surface-muted"
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-foreground">{collector.name}</span>
-                      <code className="text-[9px] text-foreground/50 font-mono mt-0.5">{collector.id}</code>
-                    </div>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${statusBg} ${statusText}`}>
-                      {isHealthy ? "Active" : "Failed"}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-1 text-[10px] text-foreground/75 mt-1 border-t border-border/40 pt-1.5">
-                    <div>
-                      <span className="opacity-60 block">Last Run:</span>
-                      <span className="font-medium">{collector.lastRun}</span>
-                    </div>
-                    <div>
-                      <span className="opacity-60 block">Items Fetched:</span>
-                      <span className={`font-bold ${isFailed ? "text-severity-critical" : "text-foreground"}`}>
-                        {collector.itemCount}
+                return (
+                  <div
+                    key={collector.id}
+                    className={`p-3 rounded-panel border flex flex-col gap-2 ${
+                      isFailed ? "border-severity-critical/30 bg-severity-critical/5" : "border-border bg-surface-muted"
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-foreground">{displayName}</span>
+                        <code className="text-[9px] text-foreground/50 font-mono mt-0.5">{collector.id}</code>
+                      </div>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${statusBg} ${statusText}`}>
+                        {isHealthy ? "Active" : "Failed"}
                       </span>
                     </div>
-                  </div>
 
-                  {isFailed && (
-                    <div className="flex flex-col gap-1.5 mt-1 bg-surface border border-severity-critical/20 p-2 rounded-panel text-[10px]">
-                      <span className="text-severity-critical font-bold">[Error] Extraction Failed</span>
-                      <p className="text-foreground/75 leading-normal">{collector.errorDetail}</p>
-                      <div className="border-t border-border/45 pt-1.5 mt-1 flex flex-col gap-1">
-                        <span className="text-[8px] uppercase tracking-wider text-foreground/50 font-bold">
-                          CLI healing command:
+                    <div className="grid grid-cols-2 gap-1 text-[10px] text-foreground/75 mt-1 border-t border-border/40 pt-1.5">
+                      <div>
+                        <span className="opacity-60 block">Last Run:</span>
+                        <span className="font-medium">{collector.lastRun}</span>
+                      </div>
+                      <div>
+                        <span className="opacity-60 block">Items Fetched:</span>
+                        <span className={`font-bold ${isFailed ? "text-severity-critical" : "text-foreground"}`}>
+                          {collector.itemCount}
                         </span>
-                        <code className="bg-surface-muted px-1.5 py-1 rounded text-[8px] font-mono select-all border border-border text-foreground break-all">
-                          brightdata scraper heal {collector.id} "markup drifted"
-                        </code>
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+
+                    {isFailed && (
+                      <div className="flex flex-col gap-1.5 mt-1 bg-surface border border-severity-critical/20 p-2 rounded-panel text-[10px]">
+                        <span className="text-severity-critical font-bold">[Error] Extraction Failed</span>
+                        <p className="text-foreground/75 leading-normal">{collector.errorDetail}</p>
+                        <div className="border-t border-border/45 pt-1.5 mt-1 flex flex-col gap-1">
+                          <span className="text-[8px] uppercase tracking-wider text-foreground/50 font-bold">
+                            CLI healing command:
+                          </span>
+                          <code className="bg-surface-muted px-1.5 py-1 rounded text-[8px] font-mono select-all border border-border text-foreground break-all">
+                            brightdata scraper heal {collector.id} "markup drifted"
+                          </code>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}

@@ -111,3 +111,36 @@ export async function healCollector(collectorId: string, prompt: string): Promis
 export async function approveHeal(collectorId: string): Promise<ScraperEnvelope> {
   return runCliCommand(["scraper", "approve", collectorId]);
 }
+
+/**
+ * Fetches an RSS XML feed and parses the article URLs from the <item><link> elements.
+ */
+export async function discoverRssUrls(rssUrl: string): Promise<string[]> {
+  try {
+    const response = await fetch(rssUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch RSS feed: ${response.status} ${response.statusText}`);
+    }
+    const xmlText = await response.text();
+
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    const urls: string[] = [];
+    let match;
+
+    while ((match = itemRegex.exec(xmlText)) !== null) {
+      const itemContent = match[1];
+      const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(itemContent);
+      if (linkMatch && linkMatch[1]) {
+        const url = linkMatch[1].trim();
+        if (url) {
+          urls.push(url);
+        }
+      }
+    }
+
+    return urls;
+  } catch (error) {
+    console.error(`[ERROR] Discovering RSS URLs failed for URL "${rssUrl}":`, error);
+    throw error;
+  }
+}
