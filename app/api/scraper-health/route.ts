@@ -7,7 +7,11 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const targetCollectors = ["c_msylxvsj5jpsgd945", "c_msylkl601pxsajf3v8"];
+  const targetCollectors = [
+    "c_msysw2mi1tutw6mudf",
+    "c_msytjogw20erpmmgps",
+    "c_msyuag5p1o4xpkft2r",
+  ];
   const healthData = [];
 
   for (const collectorId of targetCollectors) {

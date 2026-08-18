@@ -1,21 +1,20 @@
 import type { ScraperTarget } from "./client";
 
-/**
- * Maps Bright Data Scraper Studio collector IDs to their crawl target URLs or local files.
- * Key: collector_id
- * Value: single URL string, array of URL strings, or path to an input file.
- */
+// Verified Collectors & Cities Mapping:
+// c_msysw2mi1tutw6mudf — Mumbai (mid-day.com search results)
+// c_msytjogw20erpmmgps — Pune (pothole.opinify.co.in tracker)
+// c_msyuag5p1o4xpkft2r — Nashik (reddit.com r/nashik search JSON feed)
+
 export const SCRAPER_TARGETS: Record<string, ScraperTarget> = {
+  // Default mock collector for pipeline checks
   c_mock_collector: "http://mock-grievance-portal.local",
 
-  // Maps to Google News search RSS feed. This starts a two-stage flow:
-  // 1. Fetch search RSS feed and extract item link URLs.
-  // 2. Batch scrape article titles and content via the Bright Data CLI.
-c_msylkl601pxsajf3v8: "https://www.freepressjournal.in/pune/nashik-pothole-crisis-four-lives-lost-as-public-anger-mounts-corporators-demand-action-against-civic-administration",
+  // Mumbai target search URL
+  c_msysw2mi1tutw6mudf: "https://www.mid-day.com/search/mumbai-potholes-articles",
 
-  // Official Indian grievance portals are login/token-gated, not
-  // publicly listable — repurposed this collector for a public
-  // civic-complaint source instead. Fill with a specific Reddit thread
-  // (e.g. r/nashik or r/india) once you've picked one.
-  c_msylxvsj5jpsgd945: "https://english.bombaysamachar.com/mumbai/nashik-rain-107-mm-downpour-uproots-25-trees-waterlogging-disrupts-normal-life-across-city",
+  // Pune target search URL
+  c_msytjogw20erpmmgps: "https://pothole.opinify.co.in/",
+
+  // Nashik target search URL
+  c_msyuag5p1o4xpkft2r: "https://www.reddit.com/r/nashik/search.json?q=potholes+OR+roads+OR+garbage+OR+light&sort=new&limit=100",
 };

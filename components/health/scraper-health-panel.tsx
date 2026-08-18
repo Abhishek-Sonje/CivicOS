@@ -16,8 +16,9 @@ interface ScraperHealthPanelProps {
 }
 
 const COLLECTOR_NAMES: Record<string, string> = {
-  c_msylxvsj5jpsgd945: "Municipal Grievance Board Scraper",
-  c_msylkl601pxsajf3v8: "Regional News Comments Scraper",
+  c_msysw2mi1tutw6mudf: "Mumbai Mid-Day Scraper",
+  c_msytjogw20erpmmgps: "Pune Pothole Scraper",
+  c_msyuag5p1o4xpkft2r: "Nashik Reddit Scraper",
 };
 
 export default function ScraperHealthPanel({ failedGeocodeCount = 0 }: ScraperHealthPanelProps) {
