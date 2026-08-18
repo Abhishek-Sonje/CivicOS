@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export const SourceTypeSchema = z.enum([
+  "citizen_platform",
+  "news_letter",
+  "social",
+  "mock",
+]);
+
 /**
  * Raw issue payload scraped from target sources.
  * This represents the structure immediately after extraction before LLM/geocoding enrichment.
@@ -25,7 +32,13 @@ export const IssueSchema = IssueRawSchema.extend({
   lat: z.number().nullable(),
   lon: z.number().nullable(),
   geocode_status: z.enum(["ok", "failed"]),
+  source_type: SourceTypeSchema,
+  relevance_score: z.number().min(0).max(1),
 });
 
 export type IssueRaw = z.infer<typeof IssueRawSchema>;
 export type Issue = z.infer<typeof IssueSchema>;
+export type SourceType = z.infer<typeof SourceTypeSchema>;
+
+/** Issues shown on the map must meet this relevance threshold. */
+export const MAP_RELEVANCE_THRESHOLD = 0.7;

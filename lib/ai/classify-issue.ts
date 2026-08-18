@@ -2,53 +2,81 @@ import { GoogleGenAI } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
 
-// Initialize GoogleGenAI client only if the key is available
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
+export type CivicCategory =
+  | "Pothole/Road Damage"
+  | "Garbage/Trash Overflow"
+  | "Waterlogging/Drainage"
+  | "Streetlight Failure";
+
 export interface ClassificationResult {
-  category: "Pothole/Road Damage" | "Garbage/Trash Overflow" | "Waterlogging/Drainage" | "Streetlight Failure";
+  is_civic_complaint: boolean;
+  confidence: number;
+  category: CivicCategory | null;
   severity: number;
   location_text: string | null;
 }
 
-const DEFAULT_RESULT: ClassificationResult = {
-  category: "Streetlight Failure", // Safe fallback category
+const CIVIC_CATEGORIES: CivicCategory[] = [
+  "Pothole/Road Damage",
+  "Garbage/Trash Overflow",
+  "Waterlogging/Drainage",
+  "Streetlight Failure",
+];
+
+const REJECTED_RESULT: ClassificationResult = {
+  is_civic_complaint: false,
+  confidence: 0,
+  category: null,
   severity: 1,
   location_text: null,
 };
 
 /**
- * Classifies the given civic issue description using the Gemini API.
- * Returns a category, a 1-5 severity rating, and an extracted location string (if found).
- * Fails gracefully by returning default fallbacks rather than throwing to prevent breaking ingestion.
+ * Classifies civic relevance, category, severity, and location from issue text.
+ * Returns is_civic_complaint=false for non-infrastructure content (housing, food, crime, etc.).
  */
 export async function classifyIssue(descriptionText: string): Promise<ClassificationResult> {
   if (!ai) {
-    console.warn("AI warning: GEMINI_API_KEY is not configured. Using default fallback classification.");
-    return DEFAULT_RESULT;
+    console.warn("AI warning: GEMINI_API_KEY is not configured. Rejecting record (no classification available).");
+    return REJECTED_RESULT;
   }
 
-  // Handle empty or whitespace-only descriptions early
   if (!descriptionText || !descriptionText.trim()) {
-    console.warn("AI warning: Empty description provided. Returning default classification.");
-    return DEFAULT_RESULT;
+    console.warn("AI warning: Empty description provided. Rejecting record.");
+    return REJECTED_RESULT;
   }
 
   try {
     const prompt = `
-Analyze the following description of a municipal or infrastructure issue.
-Provide your response strictly as a JSON object matching this schema:
+Analyze the following text and decide if it is a citizen report of a specific municipal infrastructure problem
+(pothole, road damage, garbage overflow, drainage/waterlogging, broken streetlight, sewage, open drain, etc.).
+
+Return ONLY a JSON object matching this schema:
 {
-  "category": "Pothole/Road Damage" | "Garbage/Trash Overflow" | "Waterlogging/Drainage" | "Streetlight Failure",
-  "severity": number (an integer between 1 and 5, where 1 is minor/low and 5 is critical/severe),
-  "location_text": string | null (extract any specific street, landmark, neighborhood, or area name mentioned in the text that tells where the issue is. Provide a clean, short string like "College Road, Nashik". If no specific location name is found in the text, return null.)
+  "is_civic_complaint": boolean (true ONLY if someone is reporting physical municipal infrastructure damage or neglect at a specific place),
+  "confidence": number (0.0 to 1.0 — how confident you are that this is a real infrastructure complaint),
+  "category": "Pothole/Road Damage" | "Garbage/Trash Overflow" | "Waterlogging/Drainage" | "Streetlight Failure" | null,
+  "severity": number (integer 1-5; use 1 if not a complaint),
+  "location_text": string | null (extract street, landmark, neighborhood, or area — e.g. "College Road, Nashik". null if none found)
 }
 
-Choose the single best matching category from the list above. If none match perfectly, assign the closest category.
-Do not include any commentary, formatting backticks, or other text outside the JSON object.
+REJECT (is_civic_complaint=false) for:
+- College admissions, housing/rent, hotels, food/restaurant queries
+- Crime, accidents, legal advice, police/FIR matters
+- Product reviews, shopping, travel carpools
+- General city opinions without a specific fixable infrastructure issue
+- Political news about contractors/parties without a citizen complaint
 
-Description:
-"${descriptionText}"
+ACCEPT (is_civic_complaint=true) for:
+- Potholes, broken roads, waterlogging, garbage dumps, broken lights, drainage blocks
+- Citizen letters to newspapers about specific civic neglect at a named location
+
+If is_civic_complaint is false, set category to null and confidence below 0.5.
+
+Text:
+"${descriptionText.replace(/"/g, '\\"')}"
 `;
 
     const response = await ai.models.generateContent({
@@ -66,37 +94,48 @@ Description:
 
     const parsed = JSON.parse(responseText.trim());
 
-    // Validate the category returned from the AI
-    const validCategories = [
-      "Pothole/Road Damage",
-      "Garbage/Trash Overflow",
-      "Waterlogging/Drainage",
-      "Streetlight Failure",
-    ];
+    const is_civic_complaint = Boolean(parsed.is_civic_complaint);
 
-    let category = parsed.category;
-    if (!validCategories.includes(category)) {
-      console.warn(`AI warning: Invalid category "${category}" returned. Defaulting to fallback.`);
-      category = DEFAULT_RESULT.category;
+    let confidence = parseFloat(parsed.confidence);
+    if (isNaN(confidence)) {
+      confidence = is_civic_complaint ? 0.5 : 0;
+    }
+    confidence = Math.max(0, Math.min(1, confidence));
+
+    let category: CivicCategory | null = parsed.category;
+    if (!category || !CIVIC_CATEGORIES.includes(category)) {
+      category = is_civic_complaint ? "Pothole/Road Damage" : null;
     }
 
-    // Validate the severity returned from the AI
     let severity = parseInt(parsed.severity, 10);
     if (isNaN(severity) || severity < 1 || severity > 5) {
-      console.warn(`AI warning: Invalid severity "${parsed.severity}" returned. Defaulting to fallback.`);
-      severity = DEFAULT_RESULT.severity;
+      severity = 1;
     }
 
-    const location_text = parsed.location_text || null;
+    const location_text =
+      typeof parsed.location_text === "string" && parsed.location_text.trim()
+        ? parsed.location_text.trim()
+        : null;
+
+    if (!is_civic_complaint) {
+      return {
+        is_civic_complaint: false,
+        confidence,
+        category: null,
+        severity: 1,
+        location_text,
+      };
+    }
 
     return {
-      category: category as ClassificationResult["category"],
+      is_civic_complaint: true,
+      confidence,
+      category,
       severity,
       location_text,
     };
   } catch (error) {
     console.error("AI error: Failed to classify issue with Gemini. Exception detail:", error);
-    // Never crash the ingestion pipeline: return fallback values
-    return DEFAULT_RESULT;
+    return REJECTED_RESULT;
   }
 }

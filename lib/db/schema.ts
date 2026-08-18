@@ -14,23 +14,25 @@ export const issues = sqliteTable("issues", {
   lat: real("lat"),
   lon: real("lon"),
   geocode_status: text("geocode_status", { enum: ["ok", "failed"] }).notNull(),
+  source_type: text("source_type", {
+    enum: ["citizen_platform", "news_letter", "social", "mock"],
+  }).notNull(),
+  relevance_score: real("relevance_score").notNull(),
 });
 
 // --- COMPILE-TIME TYPE SAFETIES ---
-// Enforce that issues table exactly mirrors the Issue type from lib/types/issue.ts.
-// Any additions, deletions, or type discrepancies will cause a TypeScript compiler error.
 type SchemaSelect = typeof issues.$inferSelect;
 
-// 1. Verify Drizzle schema output satisfies Zod Issue type
 type _VerifyDrizzleToZod = SchemaSelect extends Issue ? true : never;
 const _assertDrizzleToZod: _VerifyDrizzleToZod = true;
 
-// 2. Verify Zod Issue type structure satisfies Drizzle schema
 type _VerifyZodToDrizzle = {
   [K in keyof Issue]-?: NonNullable<Issue[K]>;
 } extends {
   [K in keyof SchemaSelect]-?: NonNullable<SchemaSelect[K]>;
-} ? true : never;
+}
+  ? true
+  : never;
 const _assertZodToDrizzle: _VerifyZodToDrizzle = true;
 
 export const scraperRuns = sqliteTable("scraper_runs", {

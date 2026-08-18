@@ -1,4 +1,4 @@
-import DashboardMap from "../components/map/dashboard-map";
+import DashboardLayout from "../components/dashboard/dashboard-layout";
 import { db } from "../lib/db/client";
 import { issues } from "../lib/db/schema";
 import { COPY } from "../lib/constants/copy";
@@ -8,8 +8,9 @@ import ScraperHealthPanel from "../components/health/scraper-health-panel";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  // Query all stored issues from SQLite database
   const allIssues = await db.select().from(issues);
+  
+  // Total geocoded failures count for the health panel drawer
   const failedGeocodeCount = allIssues.filter((item) => item.geocode_status === "failed").length;
 
   // Retrieve default map center/zoom coordinates from environment variables (defaults to India)
@@ -57,14 +58,14 @@ export default async function Home() {
           </p>
         </div>
       ) : (
-        <DashboardMap 
-          issues={allIssues} 
-          defaultCenter={defaultCenter} 
-          defaultZoom={defaultZoom} 
+        <DashboardLayout
+          issues={allIssues}
+          defaultCenter={defaultCenter}
+          defaultZoom={defaultZoom}
         />
       )}
 
-      {/* Read-only scraper status drawer overlay */}
+      {/* Scraper Health status drawer */}
       <ScraperHealthPanel failedGeocodeCount={failedGeocodeCount} />
     </main>
   );
