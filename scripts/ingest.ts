@@ -10,6 +10,7 @@ import { SCRAPER_TARGETS } from "../lib/scraper/targets";
 import { MOCK_RECORDS } from "./mock-data";
 import * as dotenv from "dotenv";
 import * as path from "path";
+import * as fs from "fs/promises";
 
 // Load environment variables from .env.local for command-line execution
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
@@ -60,39 +61,68 @@ async function runIngestion() {
           );
         }
 
-        let runTarget = target;
-
-        // Handle two-stage scraping flow if the target is a Google News RSS feed
-        if (typeof target === "string" && target.includes("news.google.com/rss")) {
-          console.log(`[RSS] Resolving search feed items from RSS URL: ${target}`);
-          const discoveredUrls = await discoverRssUrls(target);
-          console.log(`[RSS] Discovered ${discoveredUrls.length} article links inside XML feed.`);
-
-          if (discoveredUrls.length === 0) {
-            throw new Error(`Google News RSS feed returned zero article items.`);
+        // Check if target points to a local JSON file that exists on disk
+        let isLocalJson = false;
+        if (typeof target === "string" && target.endsWith(".json")) {
+          try {
+            await fs.access(target);
+            isLocalJson = true;
+          } catch {
+            // File does not exist locally
           }
-
-          // Limit feed batch to the first 3 links to keep live demo execute times fast
-          const demoBatchUrls = discoveredUrls.slice(0, 3);
-          console.log(`[RSS] Batching top ${demoBatchUrls.length} articles to scrape details:`, demoBatchUrls);
-          runTarget = demoBatchUrls;
         }
 
-        // Shell out to Bright Data CLI with the target URL/file configuration
-        const result = await runCollector(collectorId, runTarget);
-        console.log("[INFO] Scraper run completed. Parsing results...");
+        if (isLocalJson && typeof target === "string") {
+          console.log(`[LOCAL] Target resolved to local file. Reading contents from: ${target}`);
+          const fileContent = await fs.readFile(target, "utf8");
+          const result = JSON.parse(fileContent);
 
-        // Extracts items flexibly based on what the JSON output contains
-        if (Array.isArray(result)) {
-          rawPayloads = result;
-        } else if (result && Array.isArray(result.results)) {
-          rawPayloads = result.results;
-        } else if (result && Array.isArray(result.items)) {
-          rawPayloads = result.items;
-        } else if (result && typeof result === "object") {
-          rawPayloads = [result];
+          if (Array.isArray(result)) {
+            rawPayloads = result;
+          } else if (result && Array.isArray(result.results)) {
+            rawPayloads = result.results;
+          } else if (result && Array.isArray(result.items)) {
+            rawPayloads = result.items;
+          } else if (result && typeof result === "object") {
+            rawPayloads = [result];
+          } else {
+            rawPayloads = [];
+          }
         } else {
-          rawPayloads = [];
+          let runTarget = target;
+
+          // Handle two-stage scraping flow if the target is a Google News RSS feed
+          if (typeof target === "string" && target.includes("news.google.com/rss")) {
+            console.log(`[RSS] Resolving search feed items from RSS URL: ${target}`);
+            const discoveredUrls = await discoverRssUrls(target);
+            console.log(`[RSS] Discovered ${discoveredUrls.length} article links inside XML feed.`);
+
+            if (discoveredUrls.length === 0) {
+              throw new Error(`Google News RSS feed returned zero article items.`);
+            }
+
+            // Limit feed batch to the first 3 links to keep live demo execute times fast
+            const demoBatchUrls = discoveredUrls.slice(0, 3);
+            console.log(`[RSS] Batching top ${demoBatchUrls.length} articles to scrape details:`, demoBatchUrls);
+            runTarget = demoBatchUrls;
+          }
+
+          // Shell out to Bright Data CLI with the target URL/file configuration
+          const result = await runCollector(collectorId, runTarget);
+          console.log("[INFO] Scraper run completed. Parsing results...");
+
+          // Extracts items flexibly based on what the JSON output contains
+          if (Array.isArray(result)) {
+            rawPayloads = result;
+          } else if (result && Array.isArray(result.results)) {
+            rawPayloads = result.results;
+          } else if (result && Array.isArray(result.items)) {
+            rawPayloads = result.items;
+          } else if (result && typeof result === "object") {
+            rawPayloads = [result];
+          } else {
+            rawPayloads = [];
+          }
         }
 
         if (!rawPayloads || rawPayloads.length === 0) {
