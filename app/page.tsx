@@ -12,6 +12,26 @@ export default async function Home() {
   const allIssues = await db.select().from(issues);
   const failedGeocodeCount = allIssues.filter((item) => item.geocode_status === "failed").length;
 
+  // Retrieve default map center/zoom coordinates from environment variables (defaults to India)
+  const defaultCenterEnv = process.env.DEFAULT_MAP_CENTER; // e.g. "20.5937,78.9629"
+  const defaultZoomEnv = process.env.DEFAULT_MAP_ZOOM;     // e.g. "5"
+
+  let defaultCenter: [number, number] = [20.5937, 78.9629];
+  if (defaultCenterEnv) {
+    const parts = defaultCenterEnv.split(",").map(Number);
+    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+      defaultCenter = [parts[0], parts[1]];
+    }
+  }
+
+  let defaultZoom = 5;
+  if (defaultZoomEnv) {
+    const parsedZoom = parseInt(defaultZoomEnv, 10);
+    if (!isNaN(parsedZoom)) {
+      defaultZoom = parsedZoom;
+    }
+  }
+
   return (
     <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8 flex flex-col gap-6">
       {/* Header section */}
@@ -37,7 +57,11 @@ export default async function Home() {
           </p>
         </div>
       ) : (
-        <DashboardMap issues={allIssues} />
+        <DashboardMap 
+          issues={allIssues} 
+          defaultCenter={defaultCenter} 
+          defaultZoom={defaultZoom} 
+        />
       )}
 
       {/* Read-only scraper status drawer overlay */}

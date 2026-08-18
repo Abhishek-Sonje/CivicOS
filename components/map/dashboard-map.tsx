@@ -15,11 +15,13 @@ const DynamicMap = nextDynamic(() => import("./issue-map"), {
 
 interface DashboardMapProps {
   issues: Issue[];
+  defaultCenter: [number, number];
+  defaultZoom: number;
 }
 
 /**
  * A Client Component wrapper for the Leaflet map to safely enable ssr: false loading in Next.js 16.
  */
-export default function DashboardMap({ issues }: DashboardMapProps) {
-  return <DynamicMap issues={issues} />;
+export default function DashboardMap({ issues, defaultCenter, defaultZoom }: DashboardMapProps) {
+  return <DynamicMap issues={issues} defaultCenter={defaultCenter} defaultZoom={defaultZoom} />;
 }
