@@ -1,4 +1,4 @@
-import nextDynamic from "next/dynamic";
+import DashboardMap from "../components/map/dashboard-map";
 import { db } from "../lib/db/client";
 import { issues } from "../lib/db/schema";
 import { COPY } from "../lib/constants/copy";
@@ -6,16 +6,6 @@ import ScraperHealthPanel from "../components/health/scraper-health-panel";
 
 // Disable static optimization to force fresh SQLite reads on every page request
 export const dynamic = "force-dynamic";
-
-// Load React Leaflet Map component dynamically to avoid window undefined SSR exceptions
-const IssueMap = nextDynamic(() => import("../components/map/issue-map"), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-[600px] rounded-panel border border-border flex items-center justify-center bg-surface-muted">
-      <span className="text-sm font-medium text-foreground/50 animate-pulse">Loading map...</span>
-    </div>
-  ),
-});
 
 export default async function Home() {
   // Query all stored issues from SQLite database
@@ -46,9 +36,9 @@ export default async function Home() {
           </p>
         </div>
       ) : (
-        <IssueMap issues={allIssues} />
+        <DashboardMap issues={allIssues} />
       )}
-      
+
       {/* Read-only scraper status drawer overlay */}
       <ScraperHealthPanel />
     </main>
