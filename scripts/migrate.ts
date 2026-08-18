@@ -9,7 +9,7 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
 async function runMigrations() {
   const dbUrl = process.env.DATABASE_URL || "file:local.db";
-  console.log(`⏳ Running migrations on: ${dbUrl}...`);
+  console.log(`[DB] Running migrations on: ${dbUrl}...`);
 
   const client = createClient({
     url: dbUrl,
@@ -21,9 +21,9 @@ async function runMigrations() {
     await migrate(db, {
       migrationsFolder: path.resolve(process.cwd(), "drizzle"),
     });
-    console.log("✅ Migrations completed successfully!");
+    console.log("[OK] Migrations completed successfully!");
   } catch (error) {
-    console.error("❌ Migration failed:", error);
+    console.error("[ERROR] Migration failed:", error);
     process.exit(1);
   } finally {
     client.close();

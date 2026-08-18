@@ -14,14 +14,14 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
 async function runIngestion() {
   const collectorId = process.argv[2] || process.env.BRIGHTDATA_COLLECTOR_ID || "c_mock_collector";
-  console.log(`🚀 Starting ingestion pipeline for collector: ${collectorId}`);
+  console.log(`[START] Starting ingestion pipeline for collector: ${collectorId}`);
 
   let rawPayloads: any;
 
   try {
-    // 1. Shell out to Bright Data CLI
+    // Shell out to Bright Data CLI
     const result = await runCollector(collectorId);
-    console.log("📥 Scraper run completed. Parsing results...");
+    console.log("[INFO] Scraper run completed. Parsing results...");
 
     // Extracts items flexibly based on what the JSON output contains
     if (Array.isArray(result)) {
@@ -31,16 +31,15 @@ async function runIngestion() {
     } else if (result && Array.isArray(result.items)) {
       rawPayloads = result.items;
     } else if (result && typeof result === "object") {
-      // If it is an envelope with data details, or a single item
       rawPayloads = [result];
     } else {
       rawPayloads = [];
     }
   } catch (error) {
     console.warn(
-      `⚠️ Bright Data CLI execution failed: ${(error as Error).message}`
+      `[WARN] Bright Data CLI execution failed: ${(error as Error).message}`
     );
-    console.log("ℹ️ Falling back to mock raw scraper payloads for demonstration...");
+    console.log("[INFO] Falling back to mock raw scraper payloads for demonstration...");
 
     // Mock raw scraper payloads for testing the pipeline
     rawPayloads = [
@@ -71,7 +70,7 @@ async function runIngestion() {
     ];
   }
 
-  console.log(`📊 Found ${rawPayloads.length} raw records to process.`);
+  console.log(`[INFO] Found ${rawPayloads.length} raw records to process.`);
   let successCount = 0;
   let skippedCount = 0;
 
@@ -82,9 +81,9 @@ async function runIngestion() {
     try {
       console.log(`\n--- ${indexStr} Processing: "${rawRecord.post_title || "Untitled"}" ---`);
 
-      // 2. Normalize and validate against IssueRaw schema
+      // Normalize and validate against IssueRaw schema
       const normalized = normalizeIssueRaw(rawRecord);
-      console.log("✅ Normalization passed.");
+      console.log("[OK] Normalization passed.");
 
       // Check for duplicates in the DB by source URL to maintain idempotency
       const existing = await db
@@ -94,13 +93,13 @@ async function runIngestion() {
         .limit(1);
 
       if (existing.length > 0) {
-        console.log(`⏭️ Record already exists in DB (source_url matches). Skipping.`);
+        console.log(`[SKIP] Record already exists in DB (source_url matches). Skipping.`);
         skippedCount++;
         continue;
       }
 
-      // 3. Classify with Gemini
-      console.log("🧠 Classifying with Gemini...");
+      // Classify with Gemini
+      console.log("[AI] Classifying with Gemini...");
       const classification = await classifyIssue(
         normalized.description_text || normalized.post_title
       );
@@ -108,19 +107,19 @@ async function runIngestion() {
         `   ↳ Category: "${classification.category}", Severity: ${classification.severity}/5`
       );
 
-      // 4. Geocode with OSM Nominatim
-      console.log(`📍 Geocoding address: "${normalized.location_text}"...`);
+      // Geocode with OSM Nominatim
+      console.log(`[GEO] Geocoding address: "${normalized.location_text}"...`);
       const coords = await geocodeLocation(normalized.location_text);
 
       if (!coords) {
-        console.warn(`⏭️ Geocoding failed (returned null) for: "${normalized.location_text}". Skipping record.`);
+        console.warn(`[SKIP] Geocoding failed (returned null) for: "${normalized.location_text}". Skipping record.`);
         skippedCount++;
         continue;
       }
       console.log(`   ↳ Latitude: ${coords.lat}, Longitude: ${coords.lon}`);
 
-      // 5. Save to the database
-      console.log("💾 Saving to database...");
+      // Save to the database
+      console.log("[DB] Saving to database...");
       await db.insert(issues).values({
         id: randomUUID(),
         post_title: normalized.post_title,
@@ -135,18 +134,17 @@ async function runIngestion() {
         lon: coords.lon,
       });
 
-      console.log("✅ Successfully saved.");
+      console.log("[OK] Successfully saved.");
       successCount++;
     } catch (err) {
-      // Log and skip record on validation/classification/processing error
       console.error(
-        `❌ Failed to process record: ${(err as Error).message}. Skipping to prevent crash.`
+        `[ERROR] Failed to process record: ${(err as Error).message}. Skipping to prevent crash.`
       );
       skippedCount++;
     }
   }
 
-  console.log(`\n🎉 Ingestion run finished! Success: ${successCount}, Skipped/Duplicates: ${skippedCount}`);
+  console.log(`\n[DONE] Ingestion run finished! Success: ${successCount}, Skipped/Duplicates: ${skippedCount}`);
 }
 
 runIngestion();

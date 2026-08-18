@@ -111,7 +111,7 @@ export default function ScraperHealthPanel() {
 
                   {isFailed && (
                     <div className="flex flex-col gap-1.5 mt-1 bg-surface border border-severity-critical/20 p-2 rounded-panel text-[10px]">
-                      <span className="text-severity-critical font-bold">⚠️ Extraction Failed</span>
+                      <span className="text-severity-critical font-bold">[Error] Extraction Failed</span>
                       <p className="text-foreground/75 leading-normal">{collector.errorDetail}</p>
                       <div className="border-t border-border/45 pt-1.5 mt-1 flex flex-col gap-1">
                         <span className="text-[8px] uppercase tracking-wider text-foreground/50 font-bold">
