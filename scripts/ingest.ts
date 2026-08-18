@@ -7,6 +7,7 @@ import { issues } from "../lib/db/schema";
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { SCRAPER_TARGETS } from "../lib/scraper/targets";
+import { MOCK_RECORDS } from "./mock-data";
 import * as dotenv from "dotenv";
 import * as path from "path";
 
@@ -14,71 +15,58 @@ import * as path from "path";
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
 async function runIngestion() {
-  const collectorId = process.argv[2] || process.env.BRIGHTDATA_COLLECTOR_ID || "c_mock_collector";
-  console.log(`[START] Starting ingestion pipeline for collector: ${collectorId}`);
+  const isMockMode = process.argv.includes("--mock");
+  const collectorId = process.argv.filter((arg) => arg !== "--mock")[2] || process.env.BRIGHTDATA_COLLECTOR_ID || "c_mock_collector";
 
-  // Retrieve crawl target configuration from the map
-  const target = SCRAPER_TARGETS[collectorId];
-  if (target === undefined || target === "" || (Array.isArray(target) && target.length === 0)) {
-    console.error(
-      `[ERROR] No target URL(s) or file path configured for collector "${collectorId}".` +
-      ` Please populate the target details inside "lib/scraper/targets.ts".`
-    );
-    process.exit(1);
-  }
+  let rawPayloads: any[];
 
-  let rawPayloads: any;
+  if (isMockMode) {
+    console.log("=========================================");
+    console.log("               [MOCK MODE]               ");
+    console.log("  Running ingestion with local mock data ");
+    console.log("=========================================");
+    rawPayloads = MOCK_RECORDS;
+  } else {
+    console.log(`[START] Starting ingestion pipeline for collector: ${collectorId}`);
 
-  try {
-    // Shell out to Bright Data CLI with the target URL/file configuration
-    const result = await runCollector(collectorId, target);
-    console.log("[INFO] Scraper run completed. Parsing results...");
-
-    // Extracts items flexibly based on what the JSON output contains
-    if (Array.isArray(result)) {
-      rawPayloads = result;
-    } else if (result && Array.isArray(result.results)) {
-      rawPayloads = result.results;
-    } else if (result && Array.isArray(result.items)) {
-      rawPayloads = result.items;
-    } else if (result && typeof result === "object") {
-      rawPayloads = [result];
-    } else {
-      rawPayloads = [];
+    // Retrieve crawl target configuration from the map
+    const target = SCRAPER_TARGETS[collectorId];
+    if (target === undefined || target === "" || (Array.isArray(target) && target.length === 0)) {
+      console.error(
+        `[ERROR] No target URL(s) or file path configured for collector "${collectorId}".` +
+        ` Please populate the target details inside "lib/scraper/targets.ts".`
+      );
+      process.exit(1);
     }
-  } catch (error) {
-    console.warn(
-      `[WARN] Bright Data CLI execution failed: ${(error as Error).message}`
-    );
-    console.log("[INFO] Falling back to mock raw scraper payloads for demonstration...");
 
-    // Mock raw scraper payloads for testing the pipeline
-    rawPayloads = [
-      {
-        post_title: "Large pothole on Elm Street",
-        description_text: "There is a deep pothole near the intersection of Elm and 4th Street that is damaging tires.",
-        image_url: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2",
-        timestamp: new Date().toISOString(),
-        location_text: "Elm St and 4th St, Springfield",
-        source_url: "https://springfieldgrievances.example/issue/101",
-      },
-      {
-        post_title: "Overflowing trash bins at Pine Park",
-        description_text: "Trash cans in the playground area have not been emptied for days. Garbage is flying everywhere.",
-        image_url: null,
-        timestamp: new Date().toISOString(),
-        location_text: "Pine Street Park, Springfield",
-        source_url: "https://springfieldgrievances.example/issue/102",
-      },
-      {
-        post_title: "Streetlight out on Maple Avenue",
-        description_text: "The streetlight post #42 is completely dead. The street is extremely dark at night.",
-        image_url: "https://images.unsplash.com/photo-1509021436665-8f07dbf5bf1d",
-        timestamp: new Date().toISOString(),
-        location_text: "Maple Ave near 15th St, Springfield",
-        source_url: "https://springfieldgrievances.example/issue/103",
-      },
-    ];
+    try {
+      // Shell out to Bright Data CLI with the target URL/file configuration
+      const result = await runCollector(collectorId, target);
+      console.log("[INFO] Scraper run completed. Parsing results...");
+
+      // Extracts items flexibly based on what the JSON output contains
+      if (Array.isArray(result)) {
+        rawPayloads = result;
+      } else if (result && Array.isArray(result.results)) {
+        rawPayloads = result.results;
+      } else if (result && Array.isArray(result.items)) {
+        rawPayloads = result.items;
+      } else if (result && typeof result === "object") {
+        rawPayloads = [result];
+      } else {
+        rawPayloads = [];
+      }
+    } catch (error) {
+      console.error(
+        `[ERROR] Bright Data CLI execution failed: ${(error as Error).message}`
+      );
+      process.exit(1);
+    }
+
+    if (!rawPayloads || rawPayloads.length === 0) {
+      console.error(`[ERROR] Scraper run for "${collectorId}" returned 0 items or null results.`);
+      process.exit(1);
+    }
   }
 
   console.log(`[INFO] Found ${rawPayloads.length} raw records to process.`);
