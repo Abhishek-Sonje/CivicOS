@@ -2,6 +2,7 @@ import nextDynamic from "next/dynamic";
 import { db } from "../lib/db/client";
 import { issues } from "../lib/db/schema";
 import { COPY } from "../lib/constants/copy";
+import ScraperHealthPanel from "../components/health/scraper-health-panel";
 
 // Disable static optimization to force fresh SQLite reads on every page request
 export const dynamic = "force-dynamic";
@@ -47,6 +48,9 @@ export default async function Home() {
       ) : (
         <IssueMap issues={allIssues} />
       )}
+      
+      {/* Read-only scraper status drawer overlay */}
+      <ScraperHealthPanel />
     </main>
   );
 }
