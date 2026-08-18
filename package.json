@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "ingest": "tsx scripts/ingest.ts"
   },
   "dependencies": {
     "@google/genai": "^2.17.1",
