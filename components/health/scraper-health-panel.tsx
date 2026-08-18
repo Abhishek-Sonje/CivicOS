@@ -12,7 +12,11 @@ interface CollectorStatus {
   errorDetail?: string;
 }
 
-export default function ScraperHealthPanel() {
+interface ScraperHealthPanelProps {
+  failedGeocodeCount?: number;
+}
+
+export default function ScraperHealthPanel({ failedGeocodeCount = 0 }: ScraperHealthPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   // Simulated status matching Bright Data collector specs for the week
@@ -59,6 +63,15 @@ export default function ScraperHealthPanel() {
               Read-only collector status. Run self-heal commands from your terminal.
             </p>
           </div>
+
+          {failedGeocodeCount > 0 && (
+            <div className="bg-severity-critical/10 border border-severity-critical/20 text-severity-critical p-3 rounded-panel text-xs font-semibold flex flex-col gap-1">
+              <span>Location Pending Issues</span>
+              <span className="font-normal text-foreground/80 text-[10px] leading-normal">
+                {failedGeocodeCount} issue{failedGeocodeCount > 1 ? "s animate-pulse" : ""} need manual location details.
+              </span>
+            </div>
+          )}
 
           <div className="flex flex-col gap-4">
             {collectors.map((collector) => {

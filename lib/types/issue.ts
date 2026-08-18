@@ -22,8 +22,9 @@ export const IssueSchema = IssueRawSchema.extend({
   id: z.string().min(1, "ID is required"),
   category: z.string().min(1, "Category is required"),
   severity: z.number().int().min(1).max(5, "Severity score must be between 1 and 5"),
-  lat: z.number(),
-  lon: z.number(),
+  lat: z.number().nullable(),
+  lon: z.number().nullable(),
+  geocode_status: z.enum(["ok", "failed"]),
 });
 
 export type IssueRaw = z.infer<typeof IssueRawSchema>;

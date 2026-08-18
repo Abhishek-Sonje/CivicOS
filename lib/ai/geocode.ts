@@ -20,6 +20,11 @@ export async function geocodeLocation(locationText: string): Promise<GeocodeResu
     url.searchParams.set("format", "json");
     url.searchParams.set("limit", "1");
 
+    const countryBias = process.env.GEOCODE_COUNTRY_BIAS;
+    if (countryBias && countryBias.trim()) {
+      url.searchParams.set("countrycodes", countryBias.trim().toLowerCase());
+    }
+
     const response = await fetch(url.toString(), {
       headers: {
         // OSM Nominatim API strictly requires a descriptive User-Agent to prevent getting blocked

@@ -11,8 +11,9 @@ export const issues = sqliteTable("issues", {
   source_url: text("source_url").notNull(),
   category: text("category").notNull(),
   severity: integer("severity").notNull(),
-  lat: real("lat").notNull(),
-  lon: real("lon").notNull(),
+  lat: real("lat"),
+  lon: real("lon"),
+  geocode_status: text("geocode_status", { enum: ["ok", "failed"] }).notNull(),
 });
 
 // --- COMPILE-TIME TYPE SAFETIES ---

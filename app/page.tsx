@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   // Query all stored issues from SQLite database
   const allIssues = await db.select().from(issues);
+  const failedGeocodeCount = allIssues.filter((item) => item.geocode_status === "failed").length;
 
   return (
     <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8 flex flex-col gap-6">
@@ -40,7 +41,7 @@ export default async function Home() {
       )}
 
       {/* Read-only scraper status drawer overlay */}
-      <ScraperHealthPanel />
+      <ScraperHealthPanel failedGeocodeCount={failedGeocodeCount} />
     </main>
   );
 }

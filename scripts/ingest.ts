@@ -106,18 +106,26 @@ async function runIngestion() {
         `   ↳ Category: "${classification.category}", Severity: ${classification.severity}/5`
       );
 
-      // Geocode with OSM Nominatim
+      // 4. Geocode with OSM Nominatim
       console.log(`[GEO] Geocoding address: "${normalized.location_text}"...`);
       const coords = await geocodeLocation(normalized.location_text);
 
-      if (!coords) {
-        console.warn(`[SKIP] Geocoding failed (returned null) for: "${normalized.location_text}". Skipping record.`);
-        skippedCount++;
-        continue;
-      }
-      console.log(`   ↳ Latitude: ${coords.lat}, Longitude: ${coords.lon}`);
+      let lat: number | null = null;
+      let lon: number | null = null;
+      let geocodeStatus: "ok" | "failed" = "failed";
 
-      // Save to the database
+      if (coords) {
+        lat = coords.lat;
+        lon = coords.lon;
+        geocodeStatus = "ok";
+        console.log(`   ↳ Latitude: ${lat}, Longitude: ${lon}`);
+      } else {
+        console.warn(
+          `[WARN] Geocoding failed for: "${normalized.location_text}". Inserting record with null coordinates.`
+        );
+      }
+
+      // 5. Save to the database
       console.log("[DB] Saving to database...");
       await db.insert(issues).values({
         id: randomUUID(),
@@ -129,8 +137,9 @@ async function runIngestion() {
         source_url: normalized.source_url,
         category: classification.category,
         severity: classification.severity,
-        lat: coords.lat,
-        lon: coords.lon,
+        lat,
+        lon,
+        geocode_status: geocodeStatus,
       });
 
       console.log("[OK] Successfully saved.");

@@ -5,7 +5,7 @@ import type { Issue } from "../../lib/types/issue";
 import L from "leaflet";
 
 interface IssueMarkerProps {
-  issue: Issue;
+  issue: Issue & { lat: number; lon: number };
 }
 
 function getSeverityToken(severity: number): "low" | "moderate" | "critical" {
