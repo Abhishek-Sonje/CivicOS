@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  /* severity scale — the only place these colors are defined */
+  --color-severity-critical: oklch(63% 0.22 25);   /* red */
+  --color-severity-moderate: oklch(83% 0.15 85);   /* yellow */
+  --color-severity-low: oklch(65% 0.15 240);       /* blue */
+
+  --color-surface: oklch(99% 0 0);
+  --color-surface-muted: oklch(96% 0 0);
+  --color-border: oklch(90% 0 0);
+  --color-foreground: oklch(20% 0 0);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui;
+  --radius-panel: 0.75rem;
+}
