@@ -23,6 +23,7 @@ export function normalizeIssueRaw(payload: any): IssueRaw {
   const description_text =
     payload.description_text ||
     payload.post_text ||
+    payload.post_body ||
     payload.short_description ||
     payload.article_content ||
     payload.description ||
@@ -56,6 +57,14 @@ export function normalizeIssueRaw(payload: any): IssueRaw {
 
   // 5. Dynamic mapping of location references or city fallbacks
   let location_text = payload.location_text || payload.location;
+  if (typeof location_text === "string") {
+    if (location_text.toLowerCase().includes("r/pune")) {
+      location_text = "Pune, India";
+    } else if (location_text.toLowerCase().includes("r/nashik")) {
+      location_text = "Nashik, India";
+    }
+  }
+
   if (!location_text) {
     const textContext = (
       (payload.input?.url || "") + 

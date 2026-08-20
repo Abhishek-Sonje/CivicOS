@@ -31,6 +31,18 @@ export const COLLECTOR_SOURCES: Record<string, CollectorSource> = {
     city: "Nashik",
     relevanceThreshold: 0.75,
   },
+  // New Pune Reddit post detail collector
+  c_mt1efh5i1k2bvvc79f: {
+    type: "social",
+    city: "Pune",
+    relevanceThreshold: 0.75,
+  },
+  // New Ludhiana Tribune news articles collector
+  c_mt1e500o2i6bg5i312: {
+    type: "news_letter",
+    city: "Ludhiana",
+    relevanceThreshold: 0.7,
+  },
 };
 
 export const DEFAULT_COLLECTOR_SOURCE: CollectorSource = {

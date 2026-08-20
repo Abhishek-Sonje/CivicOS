@@ -43,8 +43,6 @@ async function runIngestion() {
     targetCollectors = [cliCollectorId || "c_mock_collector"];
   } else if (cliCollectorId) {
     targetCollectors = [cliCollectorId];
-  } else if (process.env.BRIGHTDATA_COLLECTOR_ID) {
-    targetCollectors = [process.env.BRIGHTDATA_COLLECTOR_ID];
   } else {
     targetCollectors = Object.keys(SCRAPER_TARGETS).filter((id) => id !== "c_mock_collector");
   }
@@ -180,22 +178,15 @@ async function runIngestion() {
           const indexStr = `[Record ${i + 1}/${rawPayloads.length}${expandedRecords.length > 1 ? ` · complaint ${j + 1}/${expandedRecords.length}` : ""}]`;
 
           try {
-            const previewTitle =
-              expandedRecord.post_title ||
-              expandedRecord.article_title ||
-              expandedRecord.issue_title ||
-              "Untitled";
+            const normalized = normalizeIssueRaw(expandedRecord);
+            console.log("[OK] Normalization passed.");
 
+            const previewTitle = normalized.post_title;
             console.log(`\n--- ${indexStr} Processing: "${previewTitle}" ---`);
 
             const filterText = [
-              expandedRecord.post_title,
-              expandedRecord.issue_title,
-              expandedRecord.article_title,
-              expandedRecord.description_text,
-              expandedRecord.post_text,
-              expandedRecord.short_description,
-              expandedRecord.article_content,
+              normalized.post_title,
+              normalized.description_text,
             ]
               .filter(Boolean)
               .join("\n");
@@ -205,9 +196,6 @@ async function runIngestion() {
               rejectedCount++;
               continue;
             }
-
-            const normalized = normalizeIssueRaw(expandedRecord);
-            console.log("[OK] Normalization passed.");
 
             const existing = await db
               .select()
