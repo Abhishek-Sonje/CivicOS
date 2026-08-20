@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# SQLite databases
+local.db
+*.db
+
+# Scraper JSON cache outputs
+test*.json

@@ -221,25 +221,9 @@ async function runIngestion() {
               console.log("[MOCK] Using mock classification (bypassing Gemini).");
             } else {
               console.log("[AI] Classifying with Gemini...");
-              try {
-                classification = await classifyIssue(
-                  [normalized.post_title, normalized.description_text].filter(Boolean).join("\n\n")
-                );
-              } catch (err) {
-                console.warn(`[WARN] Gemini classification failed: ${(err as Error).message}`);
-              }
-
-              // Fallback to local keyword classifier if Gemini rejects or fails
-              if (!classification || !classification.is_civic_complaint) {
-                console.log("[AI-FALLBACK] Gemini rejected/failed. Using keyword-based fallback to preserve record.");
-                classification = {
-                  is_civic_complaint: true,
-                  confidence: 0.85, // Set above the source configs' relevance thresholds (0.6 - 0.75)
-                  category: inferMockCategory(normalized.post_title),
-                  severity: 3,
-                  location_text: normalized.location_text,
-                };
-              }
+              classification = await classifyIssue(
+                [normalized.post_title, normalized.description_text].filter(Boolean).join("\n\n")
+              );
             }
 
             console.log(

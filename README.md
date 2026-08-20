@@ -48,7 +48,11 @@ To run the crawler ingestion script:
 ```bash
 pnpm ingest
 ```
-*Note: If Bright Data CLI is not logged in or configured, the pipeline automatically falls back to mock payloads so you can test classification, geocoding, and DB storage immediately.*
+*Note: To run ingestion using offline mock data (useful for checking setup), use the `--mock` flag:*
+```bash
+pnpm ingest --mock
+```
+*When running in live mode, ensure that `GEMINI_API_KEY` is correctly configured in your `.env.local` file. The ingestion pipeline will not perform silent fallbacks if the API key is missing or failed.*
 
 ### 5. Start the App
 Start the development server:
