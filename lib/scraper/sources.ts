@@ -25,10 +25,29 @@ export const COLLECTOR_SOURCES: Record<string, CollectorSource> = {
     city: "Pune",
     relevanceThreshold: 0.75,
   },
+
+  // MyPunePulse listing targets
+  c_mt1gftp52qo35dfh4j: { type: "news_letter", city: "Pune", relevanceThreshold: 0.7 },
+  c_mypunepulse_dhanori: { type: "news_letter", city: "Pune", relevanceThreshold: 0.7 },
+  c_mypunepulse_warje: { type: "news_letter", city: "Pune", relevanceThreshold: 0.7 },
+  c_mypunepulse_sahakarnagar: { type: "news_letter", city: "Pune", relevanceThreshold: 0.7 },
+  c_mypunepulse_waterlogging: { type: "news_letter", city: "Pune", relevanceThreshold: 0.7 },
+
+  // RSS news listing targets
+  c_rss_pune_potholes: { type: "news_letter", city: "Pune", relevanceThreshold: 0.6 },
+  c_rss_pune_garbage: { type: "news_letter", city: "Pune", relevanceThreshold: 0.6 },
+  c_rss_pune_waterlogging: { type: "news_letter", city: "Pune", relevanceThreshold: 0.6 },
+  c_rss_pune_streetlights: { type: "news_letter", city: "Pune", relevanceThreshold: 0.6 },
+
+  // Detail article collectors (invoked in the second stage)
+  c_mt1fwqb12eu0izt0mj: { type: "news_letter", city: "Pune", relevanceThreshold: 0.7 },
+  c_mt1ftvsc2lr045je50: { type: "news_letter", city: "Pune", relevanceThreshold: 0.6 },
+  c_mt1g9ds7lsy9z0tw3: { type: "news_letter", city: "Pune", relevanceThreshold: 0.6 },
+  c_mt1g3jb914o0umgsa5: { type: "news_letter", city: "Pune", relevanceThreshold: 0.6 },
 };
 
 export const DEFAULT_COLLECTOR_SOURCE: CollectorSource = {
-  type: "social",
+  type: "news_letter",
   city: "Pune",
   relevanceThreshold: 0.7,
 };

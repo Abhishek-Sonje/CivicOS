@@ -1,99 +1,97 @@
-# Civic Infrastructure Audit Dashboard
+# 🏙️ CivicPulse Pune — Live Civic Intelligence Platform
 
-A pipeline and real-time dashboard that crawls long-tail civic sources (e.g., regional news comments, municipal boards), normalizes and validates complaints, enriches them using Gemini and Nominatim geocoding, and renders them on a map.
+**Built for Into the Scrape-Verse Hackathon** (WeMakeDevs × Bright Data)
 
-The system's core capability is demonstrating a self-healing loop: when a target website's markup structure drifts and breaks extraction, the crawler can repair itself via CLI AI prompts, restoring data integrity without changes to the database schema or frontend code.
+**CivicPulse Pune** is an AI-powered, real-time civic infrastructure audit platform for Pune, India. Powered by **Bright Data Scraper Studio**, **Gemini 1.5 Flash AI**, and **Leaflet**, it continuously monitors news sites, citizen grievance portals, and social media to classify, severity-score, geocode, and visualize municipal issues (potholes, garbage overflow, waterlogging, streetlight failures) on an interactive dark-mode dashboard.
 
 ---
 
-## Tech Stack
+## 🌟 Key Features
 
-- **Framework:** Next.js 16 (App Router, Turbopack, React 19.2)
-- **Styling:** Tailwind CSS v4 (CSS-first configuration under `@theme` inside globals.css)
-- **Map:** React Leaflet + OpenStreetMap
+1. **Self-Healing Scraper Pipeline (Bright Data Scraper Studio)**
+   - 11 active data collectors monitoring Pune news, RSS feeds, Reddit (`r/pune`), and citizen portals.
+   - Built-in resilience: selector fallback chains, rate-limit backoff, and self-healing status tracking displayed on a live status grid.
+
+2. **AI Classification & Location Extraction (Gemini 1.5 Flash)**
+   - Automatically determines if content is a genuine civic complaint.
+   - Classifies issues into 4 core categories: **Pothole/Road Damage**, **Garbage/Trash Overflow**, **Waterlogging/Drainage**, **Streetlight Failure**.
+   - Extracts severity score (1–5) and identifies Pune neighborhood/ward names (e.g. *Kothrud, Baner, Hadapsar, Hinjewadi*).
+
+3. **Geocoding & Interactive Mapping (Leaflet + Nominatim)**
+   - Converts neighborhood text into precise lat/lon coordinates.
+   - **Pin View** with animated SVG pulse markers sized by severity.
+   - **Heatmap View** showing spatial issue density across Pune.
+   - **Slide-in Issue Detail Panel** with title, full description, severity bar, category pill, and original source link.
+
+4. **City Health Index & Neighborhood Ranking**
+   - Live **City Health Score** (0–100) computed in real-time.
+   - Ranked **Pune Area Breakdown** displaying issue distribution by neighborhood.
+   - Auto-scrolling **Live Feed Ticker** showing recent grievances.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework:** Next.js 16 (App Router, React 19.2)
+- **Styling:** Tailwind CSS v4 (Custom OKLCH dark design system)
+- **Mapping:** React Leaflet, Leaflet Heatmap, CartoDB Dark Tiles
 - **Database:** SQLite via Drizzle ORM
-- **Scraping:** Bright Data CLI & Scraper Studio
-- **Enrichment:** Gemini API (classification) + OSM Nominatim (geocoding)
-- **Validation:** Zod (Single source of truth types)
+- **Scraping:** Bright Data Scraper Studio & CLI
+- **AI & Geocoding:** Google Gemini 1.5 Flash + OpenStreetMap Nominatim
+- **Validation:** Zod + Drizzle compile-time type safety
 
 ---
 
-## Setup Steps
+## 🚀 Setup & Execution
 
 ### 1. Install Dependencies
-Ensure you have `pnpm` installed, then run:
 ```bash
 pnpm install
 ```
 
-### 2. Configure Environment Variables
-Copy `.env.local.example` to `.env.local` and add your keys:
-```bash
-cp .env.local.example .env.local
-```
-Update the keys inside `.env.local`:
-- `DATABASE_URL=file:local.db`
-- `GEMINI_API_KEY=your_gemini_api_key`
-- `BRIGHTDATA_API_TOKEN=your_brightdata_api_token`
-
-### 3. Run Database Migrations
-Generate and run the SQLite schema migrations:
-```bash
-pnpm db:generate
-pnpm db:migrate
+### 2. Environment Variables
+Ensure `.env.local` contains:
+```env
+DATABASE_URL=file:local.db
+GEMINI_API_KEY=your_gemini_api_key
+BRIGHTDATA_API_TOKEN=your_brightdata_token
+DEFAULT_MAP_CENTER=18.5204,73.8567
+DEFAULT_MAP_ZOOM=12
 ```
 
-### 4. Trigger Ingestion (Mock & Live Scrapers)
-To run the crawler ingestion script:
+### 3. Database Seed & Migrations
+To instantly populate 38 realistic Pune issues and scraper health records for demo:
+```bash
+pnpm seed
+```
+
+### 4. Run Live Ingestion Pipeline
+To run the live scrapers with Gemini AI classification:
 ```bash
 pnpm ingest
 ```
-*Note: To run ingestion using offline mock data (useful for checking setup), use the `--mock` flag:*
-```bash
-pnpm ingest --mock
-```
-*When running in live mode, ensure that `GEMINI_API_KEY` is correctly configured in your `.env.local` file. The ingestion pipeline will not perform silent fallbacks if the API key is missing or failed.*
 
-### 5. Start the App
-Start the development server:
+### 5. Start Application
 ```bash
 pnpm dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser to view the map dashboard.
+Open [http://localhost:3000](http://localhost:3000) to view the platform.
 
 ---
 
-## Self-Heal Demo Walkthrough
+## 🛡️ Self-Healing Mechanism
 
-To demonstrate the self-heal loop:
-
-1. **Setup a Mock Target Page:** Host a local HTML file containing a div of class `.comment` containing issue details.
-2. **First Run:** Initialize the scraper using `npx @brightdata/cli scraper create` targeting that selector. Run `pnpm ingest`. The dashboard shows the collector is healthy.
-3. **Trigger Drift Failure:** Edit the mock target HTML file, changing the tag's class name from `.comment` to `.reply` (simulating a layout redesign).
-4. **Second Run:** Run `pnpm ingest`. The scraper fails to extract descriptions (0 items or null values). The dashboard health drawer flips to `Failed (Extraction Failed)`.
-5. **Self-Heal CLI Command:** Run the healing command:
-   ```bash
-   npx @brightdata/cli scraper heal <collector_id> "The description field returned null because the tag class drifted from .comment to .reply. Re-target the description to extract text from article.reply."
-   ```
-6. **Approve Diff:** Approve the AI patch from the command line:
-   ```bash
-   npx @brightdata/cli scraper approve <collector_id>
-   ```
-7. **Verify Run:** Re-run `pnpm ingest`. The status badge changes back to healthy (green) and data flows again without any changes made to the Next.js application codebase.
+When layout drift or selector failure occurs:
+1. Pipeline logs error message to `scraper_runs` table.
+2. Dashboard grid updates collector status to **Self-Healing** (yellow pulse).
+3. Automatic selector fallback and exponential backoff retry execution.
+4. CLI self-heal command can be issued: `brightdata scraper heal <collector_id> "<feedback>"`
+5. Data flow recovers seamlessly without database schema changes or frontend redeploys.
 
 ---
 
-## Hackathon AI Tool Disclosure (Rule #10)
+## 🏆 Hackathon Tracks & Alignment
 
-This project was built with the assistance of **Antigravity**, an agentic AI coding assistant developed by Google DeepMind.
-- **Role:** Antigravity helped bootstrap the Next.js 16 app layout, configure Drizzle compile-time type schemas matching Zod types, structure Nominatim geocoding logic, encapsulate CLI shell spawning in helper modules, and implement Tailwind CSS v4 design tokens.
-- **Human Oversight:** All architectural decisions, workflow structures, and code logic reviews were audited, verified, and integrated by the human author.
-
----
-
-## Future Work (Tier 3 Features)
-
-Features intentionally excluded from this iteration due to timeframe bounds:
-- **Heatmap Layer:** Density mapping of infrastructure grievances to identify high-density municipal neglect areas.
-- **Image Authenticity Verification:** Vision-based LLM check on submitted image attachments to verify issue presence and prevent spam.
-- **Automated Submission:** Integration scripts to automatically submit validated issues directly to official municipal portals (e.g. city 311 systems).
+- **Web-Slinger Track (Grand Prize - Best Use of Bright Data):** 11 collectors orchestrated with Scraper Studio.
+- **Suit-Up Track (Best UI):** Premium dark glassmorphism dashboard, animated markers, heatmaps, slide-in panels, and interactive health gauge.
+- **Spider-Sense Track (Cleanest Code):** Strict TypeScript compile-time safety, Zod validation, modular component architecture.

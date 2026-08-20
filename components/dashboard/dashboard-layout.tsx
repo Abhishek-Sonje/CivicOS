@@ -3,8 +3,7 @@
 import { useState, useMemo } from "react";
 import DashboardMap from "../map/dashboard-map";
 import AreaBreakdown from "./area-breakdown";
-import type { Issue, SourceType } from "../../lib/types/issue";
-import { MAP_RELEVANCE_THRESHOLD } from "../../lib/types/issue";
+import type { Issue } from "../../lib/types/issue";
 
 interface DashboardLayoutProps {
   issues: Issue[];
@@ -13,255 +12,181 @@ interface DashboardLayoutProps {
 }
 
 const CATEGORIES = [
-  "Pothole/Road Damage",
-  "Garbage/Trash Overflow",
-  "Waterlogging/Drainage",
-  "Streetlight Failure",
+  { key: "Pothole/Road Damage", label: "Pothole", icon: "🕳️", color: "oklch(63%_0.22_25)" },
+  { key: "Garbage/Trash Overflow", label: "Garbage", icon: "🗑️", color: "oklch(78%_0.17_75)" },
+  { key: "Waterlogging/Drainage", label: "Water", icon: "💧", color: "oklch(67%_0.18_240)" },
+  { key: "Streetlight Failure", label: "Lights", icon: "💡", color: "oklch(67%_0.18_300)" },
 ];
 
-const SOURCE_LABELS: Record<SourceType, string> = {
-  citizen_platform: "Citizen Portal",
-  news_letter: "News Column",
-  social: "Social Media",
-  mock: "Mock Data",
-};
-
-export default function DashboardLayout({
-  issues,
-  defaultCenter,
-  defaultZoom,
-}: DashboardLayoutProps) {
-  // 1. Filter States
-  const [relevanceThreshold, setRelevanceThreshold] = useState(MAP_RELEVANCE_THRESHOLD);
-  const [selectedSources, setSelectedSources] = useState<Set<SourceType>>(
-    new Set(["citizen_platform", "news_letter", "social", "mock"])
-  );
-  // Default to all categories selected
+export default function DashboardLayout({ issues, defaultCenter, defaultZoom }: DashboardLayoutProps) {
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
-    new Set(CATEGORIES)
+    new Set(CATEGORIES.map((c) => c.key))
   );
   const [searchQuery, setSearchQuery] = useState("");
 
-  // 2. Toggle Source Selection helper
-  const toggleSource = (source: SourceType) => {
-    const updated = new Set(selectedSources);
-    if (updated.has(source)) {
-      updated.delete(source);
-    } else {
-      updated.add(source);
-    }
-    setSelectedSources(updated);
-  };
-
-  // 3. Toggle Category Selection helper
   const toggleCategory = (category: string) => {
     const updated = new Set(selectedCategories);
     if (updated.has(category)) {
-      // Don't deselect the last category (keep at least one visible)
-      if (updated.size > 1) {
-        updated.delete(category);
-      }
+      if (updated.size > 1) updated.delete(category);
     } else {
       updated.add(category);
     }
     setSelectedCategories(updated);
   };
 
-  // 4. Compute Filtered Issues dataset reactively
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
-      // Relevance filter
-      if (issue.relevance_score < relevanceThreshold) {
-        return false;
-      }
-
-      // Source type filter
-      if (!selectedSources.has(issue.source_type)) {
-        return false;
-      }
-
-      // Category filter (multi-select check)
-      if (!selectedCategories.has(issue.category)) {
-        return false;
-      }
-
-      // Text search query filter (title or description)
-      if (searchQuery.trim() !== "") {
+      if (!selectedCategories.has(issue.category)) return false;
+      if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchesTitle = issue.post_title?.toLowerCase().includes(q);
-        const matchesDesc = issue.description_text?.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesDesc) {
+        if (!issue.post_title?.toLowerCase().includes(q) && !issue.description_text?.toLowerCase().includes(q)) {
           return false;
         }
       }
-
       return true;
     });
-  }, [issues, relevanceThreshold, selectedSources, selectedCategories, searchQuery]);
+  }, [issues, selectedCategories, searchQuery]);
 
-  // 5. Compute Metrics stats deck
   const stats = useMemo(() => {
     const total = filteredIssues.length;
-    const geocodeFailed = filteredIssues.filter((i) => i.geocode_status === "failed").length;
-
-    const avgSeverity =
-      total > 0
-        ? parseFloat(
-            (filteredIssues.reduce((sum, i) => sum + i.severity, 0) / total).toFixed(1)
-          )
-        : 0;
-
-    return { total, avgSeverity, geocodeFailed };
+    const avgSeverity = total > 0
+      ? parseFloat((filteredIssues.reduce((s, i) => s + i.severity, 0) / total).toFixed(1))
+      : 0;
+    const criticalCount = filteredIssues.filter((i) => i.severity >= 4).length;
+    const categoryCounts: Record<string, number> = {};
+    for (const issue of filteredIssues) {
+      categoryCounts[issue.category] = (categoryCounts[issue.category] || 0) + 1;
+    }
+    return { total, avgSeverity, criticalCount, categoryCounts };
   }, [filteredIssues]);
 
+  const healthScore = Math.round(Math.max(0, 100 - (stats.avgSeverity / 5) * 100 - stats.criticalCount * 1.5));
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start animate-fade-in">
-      {/* Sidebar Controls Card */}
-      <div className="bg-surface border border-border p-5 rounded-panel shadow-sm flex flex-col gap-5">
-        <div className="border-b border-border pb-3">
-          <h2 className="text-sm font-bold text-foreground">Interactive Filters</h2>
-          <p className="text-[10px] text-foreground/60 mt-0.5">
-            Refine issues on the map in real-time.
-          </p>
-        </div>
+    <div className="flex flex-col gap-5 animate-fade-up-2">
+      {/* ── Metric Cards Row ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MetricCard
+          title="Issues Visible"
+          value={stats.total}
+          sub="matching filters"
+          accent="oklch(72%_0.19_145)"
+        />
+        <MetricCard
+          title="Avg Severity"
+          value={stats.total > 0 ? `${stats.avgSeverity}/5` : "—"}
+          sub="across all categories"
+          accent={stats.avgSeverity >= 4 ? "oklch(63%_0.22_25)" : stats.avgSeverity >= 3 ? "oklch(78%_0.17_75)" : "oklch(72%_0.19_145)"}
+        />
+        <MetricCard
+          title="Critical Issues"
+          value={stats.criticalCount}
+          sub="severity 4-5"
+          accent="oklch(63%_0.22_25)"
+        />
+        <CityHealthCard score={healthScore} />
+      </div>
 
-        {/* Relevance Score Slider */}
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-between items-center text-xs">
-            <span className="font-semibold text-foreground/80">Relevance Score</span>
-            <span className="font-bold text-primary font-mono">
-              &ge; {relevanceThreshold.toFixed(2)}
-            </span>
-          </div>
+      {/* ── Category Quick-Filter Tabs ── */}
+      <div className="flex gap-2 flex-wrap">
+        {CATEGORIES.map((cat) => {
+          const count = stats.categoryCounts[cat.key] ?? 0;
+          const active = selectedCategories.has(cat.key);
+          return (
+            <button
+              key={cat.key}
+              onClick={() => toggleCategory(cat.key)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition-all duration-200 cursor-pointer"
+              style={{
+                background: active ? `${cat.color.replace(")", "/0.15)")}` : "oklch(18%_0.01_265)",
+                borderColor: active ? `${cat.color.replace(")", "/0.5)")}` : "oklch(28%_0.02_265)",
+                color: active ? cat.color : "oklch(60%_0.01_265)",
+              }}
+            >
+              <span>{cat.icon}</span>
+              <span>{cat.label}</span>
+              <span className="text-[10px] font-mono opacity-70">({count})</span>
+            </button>
+          );
+        })}
+
+        {/* Keyword search */}
+        <div className="ml-auto flex-1 min-w-[180px] max-w-xs relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[oklch(42%_0.01_265)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
           <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={relevanceThreshold}
-            onChange={(e) => setRelevanceThreshold(parseFloat(e.target.value))}
-            className="w-full h-1 bg-surface-muted rounded-lg appearance-none cursor-pointer accent-primary"
+            type="text"
+            placeholder="Search issues..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-8 pr-8 py-2 text-xs rounded-lg border border-[oklch(28%_0.02_265)] bg-[oklch(18%_0.01_265)] text-[oklch(94%_0.005_265)] placeholder-[oklch(42%_0.01_265)] outline-none focus:border-[oklch(72%_0.19_145/0.6)] transition-colors"
           />
-          <div className="flex justify-between text-[9px] text-foreground/50 font-mono">
-            <span>0.00 (all)</span>
-            <span>0.70 (standard)</span>
-            <span>1.00 (strict)</span>
-          </div>
-        </div>
-
-        {/* Source Type Filter Checkboxes */}
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-semibold text-foreground/80">Data Sources</span>
-          <div className="flex flex-col gap-2 mt-1">
-            {(Object.keys(SOURCE_LABELS) as SourceType[]).map((src) => {
-              const count = issues.filter((i) => i.source_type === src).length;
-              return (
-                <label
-                  key={src}
-                  className="flex items-center justify-between text-xs text-foreground/85 cursor-pointer hover:text-foreground transition-colors group"
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedSources.has(src)}
-                      onChange={() => toggleSource(src)}
-                      className="rounded border-border text-primary focus:ring-primary w-3.5 h-3.5 cursor-pointer"
-                    />
-                    <span>{SOURCE_LABELS[src]}</span>
-                  </div>
-                  <span className="text-[10px] font-mono text-foreground/50 group-hover:text-foreground/75 transition-colors">
-                    ({count})
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Text Keyword Search */}
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="keyword-search" className="text-xs font-semibold text-foreground/80">
-            Keyword Search
-          </label>
-          <div className="relative">
-            <input
-              id="keyword-search"
-              type="text"
-              placeholder="Search title, details..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-surface border border-border text-foreground text-xs rounded-panel p-2 pr-8 w-full outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-foreground/75 text-xs font-bold cursor-pointer"
-              >
-                &times;
-              </button>
-            )}
-          </div>
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-[oklch(42%_0.01_265)] hover:text-[oklch(60%_0.01_265)] cursor-pointer">
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Main Stats, Map and Area Breakdowns Deck */}
-      <div className="lg:col-span-3 flex flex-col gap-6">
-        {/* Metric cards grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-surface border border-border p-4 rounded-panel shadow-sm flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-foreground/50 uppercase tracking-wide">
-              Visible Issues
-            </span>
-            <div className="flex items-baseline gap-1.5 mt-1">
-              <span className="text-2xl font-extrabold text-foreground">{stats.total}</span>
-              <span className="text-xs text-foreground/45">matching filters</span>
-            </div>
-          </div>
-
-          <div className="bg-surface border border-border p-4 rounded-panel shadow-sm flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-foreground/50 uppercase tracking-wide">
-              Avg Severity
-            </span>
-            <div className="flex items-baseline gap-1.5 mt-1">
-              <span className="text-2xl font-extrabold text-foreground">
-                {stats.total > 0 ? stats.avgSeverity : "—"}
-              </span>
-              <span className="text-xs text-foreground/45">out of 5</span>
-            </div>
-          </div>
-
-          <div className="bg-surface border border-border p-4 rounded-panel shadow-sm flex flex-col gap-1">
-            <span className="text-[10px] font-bold text-foreground/50 uppercase tracking-wide">
-              Location Pending
-            </span>
-            <div className="flex items-baseline gap-1.5 mt-1">
-              <span
-                className={`text-2xl font-extrabold ${
-                  stats.geocodeFailed > 0 ? "text-severity-critical" : "text-foreground"
-                }`}
-              >
-                {stats.geocodeFailed}
-              </span>
-              <span className="text-xs text-foreground/45">need manual lat/lon</span>
-            </div>
-          </div>
+      {/* ── Map + Area Breakdown ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+        <div className="xl:col-span-2">
+          <DashboardMap
+            issues={filteredIssues}
+            defaultCenter={defaultCenter}
+            defaultZoom={defaultZoom}
+            selectedCategories={selectedCategories}
+            toggleCategory={toggleCategory}
+          />
         </div>
-
-        {/* Map and Area Breakdown split layout */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-          <div className="xl:col-span-2">
-            <DashboardMap
-              issues={filteredIssues}
-              defaultCenter={defaultCenter}
-              defaultZoom={defaultZoom}
-              selectedCategories={selectedCategories}
-              toggleCategory={toggleCategory}
-            />
-          </div>
-          <div className="xl:col-span-1">
-            <AreaBreakdown issues={filteredIssues} />
-          </div>
+        <div className="xl:col-span-1">
+          <AreaBreakdown issues={filteredIssues} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ title, value, sub, accent }: { title: string; value: string | number; sub: string; accent: string }) {
+  return (
+    <div className="p-4 rounded-xl border border-[oklch(28%_0.02_265)] bg-[oklch(18%_0.01_265)] flex flex-col gap-1 hover:border-[oklch(36%_0.02_265)] transition-colors">
+      <span className="text-[10px] font-mono uppercase tracking-widest text-[oklch(42%_0.01_265)]">{title}</span>
+      <span className="text-2xl font-black mt-1" style={{ color: accent }}>{value}</span>
+      <span className="text-[10px] text-[oklch(42%_0.01_265)]">{sub}</span>
+    </div>
+  );
+}
+
+function CityHealthCard({ score }: { score: number }) {
+  const color = score >= 70 ? "oklch(72%_0.19_145)" : score >= 40 ? "oklch(78%_0.17_75)" : "oklch(63%_0.22_25)";
+  const label = score >= 70 ? "Good" : score >= 40 ? "Moderate" : "Critical";
+
+  // SVG circle progress
+  const radius = 20;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (score / 100) * circumference;
+
+  return (
+    <div className="p-4 rounded-xl border border-[oklch(28%_0.02_265)] bg-[oklch(18%_0.01_265)] flex items-center gap-3 hover:border-[oklch(36%_0.02_265)] transition-colors">
+      <svg width="52" height="52" viewBox="0 0 52 52">
+        <circle cx="26" cy="26" r={radius} fill="none" stroke="oklch(28%_0.02_265)" strokeWidth="4" />
+        <circle
+          cx="26" cy="26" r={radius} fill="none"
+          stroke={color} strokeWidth="4"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+          transform="rotate(-90 26 26)"
+          style={{ transition: "stroke-dashoffset 1s ease" }}
+        />
+        <text x="26" y="30" textAnchor="middle" className="text-[10px] font-black" fill={color} style={{ fontSize: "11px", fontWeight: 900 }}>{score}</text>
+      </svg>
+      <div>
+        <span className="text-[10px] font-mono uppercase tracking-widest text-[oklch(42%_0.01_265)]">City Health</span>
+        <p className="text-sm font-bold mt-0.5" style={{ color }}>{label}</p>
+        <p className="text-[9px] text-[oklch(42%_0.01_265)]">civic index /100</p>
       </div>
     </div>
   );

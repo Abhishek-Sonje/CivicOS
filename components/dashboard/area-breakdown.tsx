@@ -3,100 +3,111 @@
 import { useMemo } from "react";
 import type { Issue } from "../../lib/types/issue";
 
-interface AreaBreakdownProps {
-  issues: Issue[];
-}
+const CATEGORY_COLORS: Record<string, string> = {
+  "Pothole/Road Damage": "oklch(63%_0.22_25)",
+  "Garbage/Trash Overflow": "oklch(78%_0.17_75)",
+  "Waterlogging/Drainage": "oklch(67%_0.18_240)",
+  "Streetlight Failure": "oklch(67%_0.18_300)",
+};
 
-export default function AreaBreakdown({ issues }: AreaBreakdownProps) {
-  // Group and rank Pune neighborhoods by issues count
+const CATEGORY_ICONS: Record<string, string> = {
+  "Pothole/Road Damage": "🕳️",
+  "Garbage/Trash Overflow": "🗑️",
+  "Waterlogging/Drainage": "💧",
+  "Streetlight Failure": "💡",
+};
+
+export default function AreaBreakdown({ issues }: { issues: Issue[] }) {
   const areaStats = useMemo(() => {
-    const statsMap: Record<
-      string,
-      { area: string; total: number; categories: Record<string, number> }
-    > = {};
-
+    const map: Record<string, { area: string; total: number; maxSeverity: number; categories: Record<string, number> }> = {};
     for (const issue of issues) {
-      const areaName = issue.area || "General Pune / Other";
-      if (!statsMap[areaName]) {
-        statsMap[areaName] = {
-          area: areaName,
-          total: 0,
-          categories: {},
-        };
-      }
-      statsMap[areaName].total += 1;
-      statsMap[areaName].categories[issue.category] =
-        (statsMap[areaName].categories[issue.category] || 0) + 1;
+      const area = issue.area || "General Pune";
+      if (!map[area]) map[area] = { area, total: 0, maxSeverity: 0, categories: {} };
+      map[area].total++;
+      map[area].maxSeverity = Math.max(map[area].maxSeverity, issue.severity);
+      map[area].categories[issue.category] = (map[area].categories[issue.category] || 0) + 1;
     }
-
-    return Object.values(statsMap).sort((a, b) => b.total - a.total);
+    return Object.values(map).sort((a, b) => b.total - a.total).slice(0, 12);
   }, [issues]);
 
+  const maxTotal = Math.max(...areaStats.map((s) => s.total), 1);
+
   return (
-    <div className="bg-surface border border-border p-5 rounded-panel shadow-md flex flex-col gap-4 max-h-[600px] overflow-y-auto">
-      <div className="border-b border-border pb-3">
-        <h2 className="text-sm font-bold text-foreground">Pune Area Breakdown</h2>
-        <p className="text-[10px] text-foreground/60 mt-0.5">
-          Civic infrastructure issues grouped by neighborhood.
-        </p>
+    <div
+      className="rounded-xl border border-[oklch(28%_0.02_265)] flex flex-col overflow-hidden"
+      style={{ background: "oklch(18%_0.01_265)", height: "580px" }}
+    >
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-[oklch(22%_0.015_265)] flex items-center justify-between shrink-0">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-4 rounded-full bg-[oklch(72%_0.19_145)]"></div>
+            <h2 className="text-sm font-bold text-[oklch(94%_0.005_265)]">Area Breakdown</h2>
+          </div>
+          <p className="text-[10px] text-[oklch(42%_0.01_265)] ml-3 mt-0.5">{areaStats.length} Pune neighborhoods</p>
+        </div>
+        <span className="text-xs font-black text-[oklch(72%_0.19_145)]">{issues.length}</span>
       </div>
 
-      {areaStats.length === 0 ? (
-        <p className="text-xs text-foreground/50 text-center py-8">
-          No visible issues in this viewport selection.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {areaStats.map(({ area, total, categories }) => (
-            <div
-              key={area}
-              className="flex flex-col gap-1.5 p-3 rounded-panel bg-surface-muted/50 border border-border/30 hover:border-border/60 transition-colors"
-            >
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-foreground">{area}</span>
-                <span className="text-xs font-extrabold text-primary font-mono">
-                  {total} {total === 1 ? "issue" : "issues"}
-                </span>
-              </div>
+      {/* Area list */}
+      <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+        {areaStats.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center text-xs text-[oklch(42%_0.01_265)]">
+            No issues visible
+          </div>
+        ) : (
+          areaStats.map(({ area, total, maxSeverity, categories }) => {
+            const barWidth = (total / maxTotal) * 100;
+            const severityColor = maxSeverity >= 4 ? "oklch(63%_0.22_25)" : maxSeverity >= 3 ? "oklch(78%_0.17_75)" : "oklch(72%_0.19_145)";
 
-              {/* Progress bar visual indicator */}
-              <div className="w-full bg-surface-muted h-1 rounded-full overflow-hidden">
-                <div
-                  className="bg-primary h-1 rounded-full"
-                  style={{
-                    width: `${Math.min(100, (total / Math.max(...areaStats.map((s) => s.total))) * 100)}%`,
-                  }}
-                ></div>
-              </div>
-
-              {/* Category list pills */}
-              <div className="flex flex-wrap gap-1 mt-1">
-                {Object.entries(categories).map(([category, count]) => {
-                  let pillColor = "";
-                  if (category === "Pothole/Road Damage") {
-                    pillColor = "bg-red-500/10 text-red-600 border-red-500/20";
-                  } else if (category === "Garbage/Trash Overflow") {
-                    pillColor = "bg-amber-500/10 text-amber-600 border-amber-500/20";
-                  } else if (category === "Waterlogging/Drainage") {
-                    pillColor = "bg-blue-500/10 text-blue-600 border-blue-500/20";
-                  } else {
-                    pillColor = "bg-purple-500/10 text-purple-600 border-purple-500/20";
-                  }
-
-                  return (
+            return (
+              <div
+                key={area}
+                className="p-3 rounded-lg border border-[oklch(24%_0.015_265)] hover:border-[oklch(32%_0.02_265)] transition-all duration-200"
+                style={{ background: "oklch(20%_0.012_265)" }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-[oklch(94%_0.005_265)]">{area}</span>
+                  <div className="flex items-center gap-1.5">
                     <span
-                      key={category}
-                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${pillColor}`}
+                      className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                      style={{ background: `${severityColor.replace(")", "/0.15)")}`, color: severityColor }}
                     >
-                      {count} {category.split("/")[0]}
+                      sev {maxSeverity}
                     </span>
-                  );
-                })}
+                    <span className="text-xs font-black" style={{ color: severityColor }}>{total}</span>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full h-1.5 rounded-full bg-[oklch(24%_0.015_265)] overflow-hidden mb-2">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: `${barWidth}%`, background: `linear-gradient(90deg, ${severityColor}, ${severityColor.replace(")", "/0.7)")})` }}
+                  />
+                </div>
+
+                {/* Category pills */}
+                <div className="flex flex-wrap gap-1">
+                  {Object.entries(categories).map(([cat, count]) => (
+                    <span
+                      key={cat}
+                      className="text-[8px] font-bold px-1.5 py-0.5 rounded border"
+                      style={{
+                        background: `${CATEGORY_COLORS[cat]?.replace(")", "/0.12)")}`,
+                        color: CATEGORY_COLORS[cat] ?? "oklch(60%_0.01_265)",
+                        borderColor: `${CATEGORY_COLORS[cat]?.replace(")", "/0.3)")}`,
+                      }}
+                    >
+                      {CATEGORY_ICONS[cat]} {count}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }

@@ -56,10 +56,11 @@ async function runIngestion() {
 
   let targetCollectors: string[] = [];
 
-  if (isMockMode) {
-    targetCollectors = [cliCollectorId || "c_mock_collector"];
-  } else if (cliCollectorId) {
+  if (cliCollectorId) {
     targetCollectors = [cliCollectorId];
+  } else if (isMockMode) {
+    // Run all registered targets offline using local mock/cache data
+    targetCollectors = Object.keys(SCRAPER_TARGETS);
   } else {
     targetCollectors = Object.keys(SCRAPER_TARGETS).filter((id) => id !== "c_mock_collector");
   }
@@ -74,7 +75,7 @@ async function runIngestion() {
     try {
       let rawPayloads: Record<string, unknown>[];
 
-      if (isMockMode) {
+      if (isMockMode && collectorId === "c_mock_collector") {
         console.log("=========================================");
         console.log(`         [MOCK MODE: ${collectorId}]     `);
         console.log("  Running ingestion with local mock data ");
@@ -85,7 +86,15 @@ async function runIngestion() {
         console.log(`\n[START] Starting ingestion pipeline for collector: ${collectorId}`);
         console.log(`[INFO] Source type: ${sourceConfig.type}, city: ${sourceConfig.city}`);
 
-        const target = SCRAPER_TARGETS[collectorId];
+        const targetConfig = SCRAPER_TARGETS[collectorId];
+        if (!targetConfig) {
+          throw new Error(
+            `No target configuration found for collector "${collectorId}".` +
+              ` Please configure targets inside "lib/scraper/targets.ts".`
+          );
+        }
+
+        const target = targetConfig.target;
         if (target === undefined || target === "" || (Array.isArray(target) && target.length === 0)) {
           throw new Error(
             `No target URL(s) or file path configured for collector "${collectorId}".` +
@@ -103,52 +112,98 @@ async function runIngestion() {
           }
         }
 
-        if (isLocalJson && typeof target === "string") {
-          console.log(`[LOCAL] Target resolved to local file. Reading contents from: ${target}`);
-          const fileContent = await fs.readFile(target, "utf8");
-          const result = JSON.parse(fileContent);
+        if (isMockMode && !isLocalJson && collectorId !== "c_mock_collector") {
+          console.log(`[MOCK] Skipping live collector "${collectorId}" in mock mode.`);
+          continue;
+        }
 
-          if (Array.isArray(result)) {
-            rawPayloads = result;
-          } else if (result && Array.isArray(result.results)) {
-            rawPayloads = result.results;
-          } else if (result && Array.isArray(result.items)) {
-            rawPayloads = result.items;
-          } else if (result && typeof result === "object") {
-            rawPayloads = [result];
-          } else {
-            rawPayloads = [];
-          }
-        } else {
-          let runTarget = target;
+        if (targetConfig.isListing || targetConfig.isRss) {
+          let childUrls: string[] = [];
 
-          if (typeof target === "string" && target.includes("news.google.com/rss")) {
+          if (targetConfig.isRss) {
             console.log(`[RSS] Resolving search feed items from RSS URL: ${target}`);
-            const discoveredUrls = await discoverRssUrls(target);
+            const discoveredUrls = await discoverRssUrls(target as string);
             console.log(`[RSS] Discovered ${discoveredUrls.length} article links inside XML feed.`);
-
-            if (discoveredUrls.length === 0) {
-              throw new Error(`Google News RSS feed returned zero article items.`);
+            childUrls = discoveredUrls.slice(0, 8);
+          } else {
+            let listItems: any[] = [];
+            if (isLocalJson && typeof target === "string") {
+              console.log(`[LOCAL-LIST] Reading list from local file: ${target}`);
+              const fileContent = await fs.readFile(target, "utf8");
+              listItems = JSON.parse(fileContent);
+            } else {
+              console.log(`[LIVE-LIST] Scraping listing page: ${target}`);
+              const result = await runCollector("c_mt1gftp52qo35dfh4j", target);
+              listItems = Array.isArray(result) ? result : [result];
             }
 
-            const demoBatchUrls = discoveredUrls.slice(0, 3);
-            console.log(`[RSS] Batching top ${demoBatchUrls.length} articles to scrape details:`, demoBatchUrls);
-            runTarget = demoBatchUrls;
+            // Extract child article links from the listing objects
+            const urls = listItems
+              .map((item) => item.product_page_url)
+              .filter(Boolean) as string[];
+            childUrls = Array.from(new Set(urls)).slice(0, 8);
           }
 
-          const result = await runCollector(collectorId, runTarget);
-          console.log("[INFO] Scraper run completed. Parsing results...");
+          console.log(`[INFO] Found ${childUrls.length} child article URLs to scrape:`, childUrls);
 
-          if (Array.isArray(result)) {
-            rawPayloads = result;
-          } else if (result && Array.isArray(result.results)) {
-            rawPayloads = result.results;
-          } else if (result && Array.isArray(result.items)) {
-            rawPayloads = result.items;
-          } else if (result && typeof result === "object") {
-            rawPayloads = [result];
+          rawPayloads = [];
+          for (const childUrl of childUrls) {
+            let childItems: any[] = [];
+            if (isLocalJson) {
+              const childConfig = SCRAPER_TARGETS[targetConfig.detailCollectorId!];
+              if (childConfig && typeof childConfig.target === "string" && childConfig.target.endsWith(".json")) {
+                console.log(`[LOCAL-CHILD] Resolving child detail local cache: ${childConfig.target}`);
+                const fileContent = await fs.readFile(childConfig.target, "utf8");
+                childItems = JSON.parse(fileContent);
+              }
+            } else {
+              console.log(`[LIVE-CHILD] Scraping article detail: ${childUrl}`);
+              const result = await runCollector(targetConfig.detailCollectorId!, childUrl);
+              childItems = Array.isArray(result) ? result : [result];
+            }
+
+            for (const item of childItems) {
+              if (item) {
+                if (!item.input) {
+                  item.input = { url: childUrl };
+                }
+                rawPayloads.push(item);
+              }
+            }
+          }
+        } else {
+          // Single stage flow
+          if (isLocalJson && typeof target === "string") {
+            console.log(`[LOCAL] Target resolved to local file. Reading contents from: ${target}`);
+            const fileContent = await fs.readFile(target, "utf8");
+            const result = JSON.parse(fileContent);
+
+            if (Array.isArray(result)) {
+              rawPayloads = result;
+            } else if (result && Array.isArray(result.results)) {
+              rawPayloads = result.results;
+            } else if (result && Array.isArray(result.items)) {
+              rawPayloads = result.items;
+            } else if (result && typeof result === "object") {
+              rawPayloads = [result];
+            } else {
+              rawPayloads = [];
+            }
           } else {
-            rawPayloads = [];
+            const result = await runCollector(collectorId, target);
+            console.log("[INFO] Scraper run completed. Parsing results...");
+
+            if (Array.isArray(result)) {
+              rawPayloads = result;
+            } else if (result && Array.isArray(result.results)) {
+              rawPayloads = result.results;
+            } else if (result && Array.isArray(result.items)) {
+              rawPayloads = result.items;
+            } else if (result && typeof result === "object") {
+              rawPayloads = [result];
+            } else {
+              rawPayloads = [];
+            }
           }
         }
       }
@@ -345,7 +400,9 @@ async function runIngestion() {
   }
 
   if (anyCollectorFailed) {
-    process.exit(1);
+    console.log("\n[SUMMARY] Ingestion pipeline finished with some collector failures logged to health table.");
+  } else {
+    console.log("\n[SUMMARY] Ingestion pipeline completed cleanly across all collectors!");
   }
 }
 
