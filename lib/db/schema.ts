@@ -18,6 +18,7 @@ export const issues = sqliteTable("issues", {
     enum: ["citizen_platform", "news_letter", "social", "mock"],
   }).notNull(),
   relevance_score: real("relevance_score").notNull(),
+  area: text("area"),
 });
 
 // --- COMPILE-TIME TYPE SAFETIES ---

@@ -16,6 +16,7 @@ export interface ClassificationResult {
   category: CivicCategory | null;
   severity: number;
   location_text: string | null;
+  area: string | null;
 }
 
 const CIVIC_CATEGORIES: CivicCategory[] = [
@@ -31,6 +32,7 @@ const REJECTED_RESULT: ClassificationResult = {
   category: null,
   severity: 1,
   location_text: null,
+  area: null,
 };
 
 /**
@@ -59,7 +61,8 @@ Return ONLY a JSON object matching this schema:
   "confidence": number (0.0 to 1.0 — how confident you are that this is a real infrastructure complaint),
   "category": "Pothole/Road Damage" | "Garbage/Trash Overflow" | "Waterlogging/Drainage" | "Streetlight Failure" | null,
   "severity": number (integer 1-5; use 1 if not a complaint),
-  "location_text": string | null (extract street, landmark, neighborhood, or area — e.g. "College Road, Nashik". null if none found)
+  "location_text": string | null (extract street, landmark, neighborhood, or area — e.g. "College Road, Nashik". null if none found),
+  "area": string | null (extract a rough neighborhood or locality name in Pune — e.g. "Kothrud", "Baner", "Hadapsar", "Viman Nagar", "Kalyani Nagar", "Aundh", "Wagholi", "Katraj". null if not determinable)
 }
 
 REJECT (is_civic_complaint=false) for:
@@ -124,8 +127,14 @@ Text:
         category: null,
         severity: 1,
         location_text,
+        area: null,
       };
     }
+
+    const area =
+      typeof parsed.area === "string" && parsed.area.trim()
+        ? parsed.area.trim()
+        : null;
 
     return {
       is_civic_complaint: true,
@@ -133,6 +142,7 @@ Text:
       category,
       severity,
       location_text,
+      area,
     };
   } catch (error) {
     console.error("AI error: Failed to classify issue with Gemini. Exception detail:", error);

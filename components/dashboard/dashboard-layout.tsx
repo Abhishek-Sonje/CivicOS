@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import DashboardMap from "../map/dashboard-map";
+import AreaBreakdown from "./area-breakdown";
 import type { Issue, SourceType } from "../../lib/types/issue";
 import { MAP_RELEVANCE_THRESHOLD } from "../../lib/types/issue";
 
@@ -35,7 +36,10 @@ export default function DashboardLayout({
   const [selectedSources, setSelectedSources] = useState<Set<SourceType>>(
     new Set(["citizen_platform", "news_letter", "social", "mock"])
   );
-  const [selectedCategory, setSelectedCategory] = useState("All");
+  // Default to all categories selected
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
+    new Set(CATEGORIES)
+  );
   const [searchQuery, setSearchQuery] = useState("");
 
   // 2. Toggle Source Selection helper
@@ -49,7 +53,21 @@ export default function DashboardLayout({
     setSelectedSources(updated);
   };
 
-  // 3. Compute Filtered Issues dataset
+  // 3. Toggle Category Selection helper
+  const toggleCategory = (category: string) => {
+    const updated = new Set(selectedCategories);
+    if (updated.has(category)) {
+      // Don't deselect the last category (keep at least one visible)
+      if (updated.size > 1) {
+        updated.delete(category);
+      }
+    } else {
+      updated.add(category);
+    }
+    setSelectedCategories(updated);
+  };
+
+  // 4. Compute Filtered Issues dataset reactively
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
       // Relevance filter
@@ -62,8 +80,8 @@ export default function DashboardLayout({
         return false;
       }
 
-      // Category filter
-      if (selectedCategory !== "All" && issue.category !== selectedCategory) {
+      // Category filter (multi-select check)
+      if (!selectedCategories.has(issue.category)) {
         return false;
       }
 
@@ -79,9 +97,9 @@ export default function DashboardLayout({
 
       return true;
     });
-  }, [issues, relevanceThreshold, selectedSources, selectedCategory, searchQuery]);
+  }, [issues, relevanceThreshold, selectedSources, selectedCategories, searchQuery]);
 
-  // 4. Compute Metrics deck stats
+  // 5. Compute Metrics stats deck
   const stats = useMemo(() => {
     const total = filteredIssues.length;
     const geocodeFailed = filteredIssues.filter((i) => i.geocode_status === "failed").length;
@@ -97,9 +115,9 @@ export default function DashboardLayout({
   }, [filteredIssues]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-      {/* Sidebar Controls Overlay */}
-      <div className="bg-surface border border-border p-5 rounded-panel shadow-lg flex flex-col gap-5">
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start animate-fade-in">
+      {/* Sidebar Controls Card */}
+      <div className="bg-surface border border-border p-5 rounded-panel shadow-sm flex flex-col gap-5">
         <div className="border-b border-border pb-3">
           <h2 className="text-sm font-bold text-foreground">Interactive Filters</h2>
           <p className="text-[10px] text-foreground/60 mt-0.5">
@@ -160,26 +178,6 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        {/* Issue Category Dropdown */}
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="category-select" className="text-xs font-semibold text-foreground/80">
-            Category
-          </label>
-          <select
-            id="category-select"
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="bg-surface border border-border text-foreground text-xs rounded-panel p-2 focus:ring-1 focus:ring-primary focus:border-primary w-full outline-none"
-          >
-            <option value="All">All Categories</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-        </div>
-
         {/* Text Keyword Search */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="keyword-search" className="text-xs font-semibold text-foreground/80">
@@ -206,7 +204,7 @@ export default function DashboardLayout({
         </div>
       </div>
 
-      {/* Main Stats and Map Deck */}
+      {/* Main Stats, Map and Area Breakdowns Deck */}
       <div className="lg:col-span-3 flex flex-col gap-6">
         {/* Metric cards grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -249,12 +247,21 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        {/* Leaflet dynamic map wrapper */}
-        <DashboardMap
-          issues={filteredIssues}
-          defaultCenter={defaultCenter}
-          defaultZoom={defaultZoom}
-        />
+        {/* Map and Area Breakdown split layout */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+          <div className="xl:col-span-2">
+            <DashboardMap
+              issues={filteredIssues}
+              defaultCenter={defaultCenter}
+              defaultZoom={defaultZoom}
+              selectedCategories={selectedCategories}
+              toggleCategory={toggleCategory}
+            />
+          </div>
+          <div className="xl:col-span-1">
+            <AreaBreakdown issues={filteredIssues} />
+          </div>
+        </div>
       </div>
     </div>
   );

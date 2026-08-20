@@ -34,6 +34,7 @@ export const IssueSchema = IssueRawSchema.extend({
   geocode_status: z.enum(["ok", "failed"]),
   source_type: SourceTypeSchema,
   relevance_score: z.number().min(0).max(1),
+  area: z.string().nullable(),
 });
 
 export type IssueRaw = z.infer<typeof IssueRawSchema>;

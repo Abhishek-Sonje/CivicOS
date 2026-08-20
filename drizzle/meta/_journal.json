@@ -29,6 +29,13 @@
       "when": 1787080509822,
       "tag": "0003_glamorous_mercury",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1787224591270,
+      "tag": "0004_lean_slipstream",
+      "breakpoints": true
     }
   ]
 }

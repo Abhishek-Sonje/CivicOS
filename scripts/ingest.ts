@@ -33,6 +33,23 @@ function inferMockCategory(title: string): CivicCategory {
   return "Pothole/Road Damage";
 }
 
+function inferPuneArea(text: string): string | null {
+  const lower = text.toLowerCase();
+  const areas = [
+    "Kothrud", "Baner", "Hadapsar", "Hinjewadi", "Shivajinagar", 
+    "Kalyani Nagar", "Viman Nagar", "Wagholi", "Katraj", "Aundh", 
+    "Koregaon Park", "Manjari", "Ambegaon", "Warje", "Pimple Saudagar", 
+    "Chinchwad", "Pimpri", "Deccan", "Camp", "Karvenagar", "Bibwewadi",
+    "Dhankawadi", "Bhosari", "Sangvi", "Khadki", "Yerawada"
+  ];
+  for (const area of areas) {
+    if (lower.includes(area.toLowerCase())) {
+      return area;
+    }
+  }
+  return null;
+}
+
 async function runIngestion() {
   const isMockMode = process.argv.includes("--mock");
   const cliCollectorId = process.argv.filter((arg) => arg !== "--mock")[2];
@@ -281,6 +298,7 @@ async function runIngestion() {
               geocode_status: geocodeStatus,
               source_type: sourceType,
               relevance_score: classification.confidence,
+              area: classification.area || inferPuneArea(filterText) || null,
             });
 
             console.log("[OK] Successfully saved.");
